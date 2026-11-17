@@ -1,0 +1,6 @@
+docs/superpowers/
+.superpowers/
+.blocklist
+__pycache__/
+.pytest_cache/
+.DS_Store

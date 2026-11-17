@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# Before every push: scan the pushed commits with gitleaks, then run the blocklist
+# check over the pushed history (patches, messages, authors, file names) and all tracked files. Enable per clone: git config core.hooksPath scripts/git-hooks
+set -euo pipefail
+
+null=0000000000000000000000000000000000000000
+root=$(git rev-parse --show-toplevel)
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "pre-push: gitleaks is missing (brew install gitleaks). Push aborted." >&2
+  exit 1
+fi
+
+failed=0
+while read -r _local_ref local_sha _remote_ref remote_sha; do
+  [ "$local_sha" = "$null" ] && continue # branch deletion: nothing to scan
+  if [ "$remote_sha" != "$null" ] && git cat-file -e "$remote_sha^{commit}" 2>/dev/null; then
+    range="$remote_sha..$local_sha"
+  else
+    range="$local_sha --not --remotes" # new branch: only commits not on any remote branch
+  fi
+  if ! gitleaks git --redact --verbose --no-banner --log-level warn --log-opts="$range" "$root" >&2; then
+    echo "pre-push: gitleaks reports possible secrets (values redacted, see above)." >&2
+    failed=1
+  fi
+  # shellcheck disable=SC2086 # $range is a deliberate word-split list of revision arguments
+  if ! python3 "$root/scripts/blocklist_check.py" --history $range >&2; then
+    echo "pre-push: blocklist hit in the pushed history, messages or author fields (see above)." >&2
+    failed=1
+  fi
+done
+
+if ! python3 "$root/scripts/blocklist_check.py" --all >&2; then
+  echo "pre-push: blocklist check failed (see above)." >&2
+  failed=1
+fi
+
+if [ "$failed" -ne 0 ]; then
+  echo "pre-push: push aborted." >&2
+  exit 1
+fi

@@ -1,0 +1,67 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.13"]
+    steps:
+      - uses: actions/checkout@v4.2.2
+      - uses: actions/setup-python@v5.6.0
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install pytest
+        run: python -m pip install pytest pyyaml
+      - name: Run tests
+        run: python -m pytest -q
+
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4.2.2
+        with:
+          fetch-depth: 0
+      - name: Secret scan over the whole history
+        run: |
+          set -euo pipefail
+          version=8.24.3
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${version}/gitleaks_${version}_linux_x64.tar.gz" -o gitleaks.tar.gz
+          tar -xzf gitleaks.tar.gz gitleaks
+          ./gitleaks git --redact --no-banner --log-level warn .
+
+  blocklist:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4.2.2
+        with:
+          fetch-depth: 0
+      - name: Notice for pull requests from forks
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
+        run: |
+          echo '::notice::Blocklist check skipped: the private blocklist secret is not available to fork pull requests. A maintainer runs it before merging.'
+      - name: Blocklist check (working tree and full history)
+        if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          SF_BLOCKLIST: ${{ secrets.SF_BLOCKLIST }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SF_BLOCKLIST}" ]; then
+            echo "Secret SF_BLOCKLIST is empty or missing; the scan cannot run." >&2
+            exit 1
+          fi
+          umask 077
+          blocklist_file="${RUNNER_TEMP}/blocklist"
+          trap 'rm -f "${blocklist_file}"' EXIT
+          printf '%s\n' "${SF_BLOCKLIST}" > "${blocklist_file}"
+          export SF_BLOCKLIST_FILE="${blocklist_file}"
+          python3 scripts/blocklist_check.py --all
+          python3 scripts/blocklist_check.py --history --all

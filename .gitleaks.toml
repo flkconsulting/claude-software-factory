@@ -1,0 +1,13 @@
+# gitleaks rules: default rules plus IPv4 addresses (no addresses in this repo).
+[extend]
+useDefault = true
+
+[[rules]]
+id = "ipv4-address"
+description = "IPv4 address"
+regex = '''\b(?:25[0-5]|2[0-4]\d|1?\d?\d)(?:\.(?:25[0-5]|2[0-4]\d|1?\d?\d)){3}\b'''
+keywords = ["."]
+
+[rules.allowlist]
+regexTarget = "match"
+regexes = ['''^127\.0\.0\.1$''', '''^0\.0\.0\.0$''']

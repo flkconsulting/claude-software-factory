@@ -1,0 +1,18 @@
+{
+  "name": "software-factory",
+  "description": "A transferable way of working with Claude Code: guard hooks, session hand-over, and a setup workflow for new projects",
+  "version": "0.1.0",
+  "author": {
+    "name": "FLK Consulting UG"
+  },
+  "homepage": "https://github.com/flkconsulting/claude-software-factory",
+  "repository": "https://github.com/flkconsulting/claude-software-factory",
+  "license": "MIT",
+  "keywords": [
+    "workflow",
+    "hooks",
+    "model-choice",
+    "context-load",
+    "setup"
+  ]
+}
