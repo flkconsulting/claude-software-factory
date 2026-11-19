@@ -15,6 +15,7 @@ The subject is the **process** (who waits, what stalls, what runs twice, where r
 - Report files of delegated work (final-report style reports, see `delegate-work`): first lines (DONE / BLOCKED), open points, deviations from the start file.
 - Start files and their follow-ups: many follow-ups mean a gap in the template or skill.
 - Questions to the user and their answers: how many, how long open, did work continue meanwhile.
+- Session transcripts (Claude Code JSONL under `~/.claude/projects/<project>/`): never read whole; search targeted with grep/jq for user corrections, rejected tool calls, hook blocks and commands that fail repeatedly. Quote a few short passages per session as evidence; no secrets or personal data in the report.
 - Session statistics if the user's setup provides them (tokens and model per session); otherwise "not collected".
 - Proposals of earlier retrospectives: implemented? effective?
 
@@ -28,6 +29,7 @@ The subject is the **process** (who waits, what stalls, what runs twice, where r
 | Questions to the user, how many blocking | question files or reports |
 | Tokens and model share (Opus share target at most 40 % of helper work) | session statistics, if available |
 | Heavy runs repeated after failure | reports |
+| Size of the always-loaded agent instructions (lines/words of AGENTS.md/CLAUDE.md and rule files) | wc |
 
 If a source is missing write "not collected"; propose measuring it only if it would support a real decision. No overall index and no traffic light. Judge cost per task only together with rework: more expensive and right the first time beats cheaper with rework. Never count waiting for the user as inefficiency of the agents.
 
@@ -41,6 +43,10 @@ Every finding needs evidence (file, commit, report). Without evidence, no findin
 - Unclear ownership: nobody or two parties felt responsible.
 - Friction for the user: questions without a recommendation, duplicate questions, things they had to look up.
 - Cost: Opus for mechanical work, long start files in every context, agents re-reading the same files, full runs where a focused one sufficed, finished sessions still holding context.
+
+**Tool before text:** If a finding concerns a rule that can be checked mechanically (or a text rule that is being ignored), propose a tool first (hook, linter, test, CI check); propose a text rule only if it cannot be checked.
+
+**Review of agent instructions** (files every session loads): prefer references over copied content; each statement in one place only; each rule with a clear trigger; verifiable completion criteria; delete what is outdated. Report the size against the previous period.
 
 ## 4. Report
 
@@ -61,7 +67,7 @@ Went well: <one or two sentences>
    Consequence: <time/risk/cost, estimated>
    Effort: <implementation and running cost of the change>
    Proposal: <concrete change>
-   Kind: new skill | change skill | template | rule | tool
+   Kind: tool (hook, linter, test, CI) | new skill | change skill | template | rule
    Approval needed: yes/no
 
 ## Proposals of earlier periods
