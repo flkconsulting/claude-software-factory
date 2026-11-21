@@ -10,6 +10,7 @@ This folder holds the planning, independent of the code branch: what is planned,
 | `QUESTIONS.md` | **Q-x** questions to the user, each with a recommendation; section "Present to user" at the top |
 | `FINDINGS.md` | **F-x** causes, dead ends, lessons |
 | `TODO.md` | next steps, only with references to numbers and plans |
+| `ERRORS.jsonl` | one JSON line per solved error cause (date, symptom, cause, fix, ref); search it first, append after the fix (skill `error-index`); no secrets, tokens or names |
 
 ## Rules for agents
 
@@ -20,6 +21,7 @@ This folder holds the planning, independent of the code branch: what is planned,
 5. **F-entries:** record causes, dead ends and lessons as F-x.
 6. **Decide the rest yourself:** what follows from the repo, docs, tests or a D-x, the agent decides and implements.
 7. **Not here:** secrets, credentials, real customer or personal data.
+8. **Errors:** on a new error, search ERRORS.jsonl first; after the fix, append one line.
 
 ## States
 

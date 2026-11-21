@@ -6,4 +6,9 @@ All notable changes to this project are documented in this file.
 
 ### Added
 - Plugin and marketplace manifests (version 0.1.0).
+- Skill pre-check: five evidence questions before planning or implementing, without scoring.
+- Skill error-index: per-project JSONL index of solved error causes with a search/append script that rejects obvious secrets; planning template ERRORS.jsonl.
 - Documentation (docs/01 to docs/04), README and CI workflow (tests on Python 3.10 and 3.13, secret and blocklist scan).
+
+### Changed
+- Project templates: pointers to pre-check and the error index; definition of done requires every requirement checked off.

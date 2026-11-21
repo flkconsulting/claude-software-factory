@@ -1,6 +1,6 @@
 # software-factory
 
-A transferable way of working with Claude Code, packaged as a plugin: guard hooks for the model choice of helper agents and for the context load of long sessions, rule and project templates, three skills for delegating work, shipping releases and running retrospectives, and a guided setup command for new projects.
+A transferable way of working with Claude Code, packaged as a plugin: guard hooks for the model choice of helper agents and for the context load of long sessions, rule and project templates, five skills for delegating work, shipping releases, running retrospectives, checking evidence before planning (`pre-check`) and keeping an error index (`error-index`), and a guided setup command for new projects.
 
 This is **Stage 1**: everything runs on one machine, with subagents and git worktrees (variant A). Server-based steering (variant B) is Stage 2 and not yet available.
 
@@ -25,7 +25,7 @@ Run the setup command inside the project you want to equip (namespaced form: `/s
 
 It asks one question at a time, detects project facts from the repository, and shows every file (or diff) before writing it. It never overwrites silently and never writes to `~/.claude/` without your explicit consent. It produces:
 
-- `AGENTS.md` and `CLAUDE.md` for the project, and an optional `planning/` folder;
+- `AGENTS.md` and `CLAUDE.md` for the project, and an optional `planning/` folder (including the empty error index `planning/ERRORS.jsonl`);
 - a proposal for `~/.claude/CLAUDE.md` and `~/.claude/rules/`;
 - the per-user settings file `~/.claude/software-factory.json`.
 
@@ -39,6 +39,8 @@ It asks one question at a time, detects project facts from the repository, and s
 | Skill `delegate-work` | Start file, limits, model choice, worktree, report format for delegated work | `skills/delegate-work/` |
 | Skill `ship-release` | Release checklist with backup, way back and acceptance list | `skills/ship-release/` |
 | Skill `workflow-retrospective` | Key figures and at most three evidenced improvements | `skills/workflow-retrospective/` |
+| Skill `pre-check` | Five evidence questions before a plan or implementation, no scoring | `skills/pre-check/` |
+| Skill `error-index` | Searchable per-project list of solved error causes with a small script | `skills/error-index/` |
 | Templates | Global and project instructions, planning folder, rules (model choice, session handover, briefing, final report, structured questions) | `templates/` |
 | Secret scan helpers | Pre-push hook and a blocklist check for this repository's own contributors | `scripts/` |
 

@@ -28,8 +28,12 @@ Example: `make test` runs the unit tests; `make lint` runs linter and format che
 ## Conventions
 - Follow the existing naming and structure of the repo; reuse existing patterns before adding new ones.
 - Configuration only through the existing mechanism; new settings get safe defaults and are documented.
+- Before writing a plan or starting an implementation, run the `pre-check` skill (five questions, each answered with evidence or marked open).
+- Error index: {{PLANNING_LOCATION}}/ERRORS.jsonl; on a new error search it first, after the fix append one line (skill `error-index`). Never put secrets, tokens or names in it.
 
 Example: A new setting is added to the example config file with a default that changes nothing.
+
+Example: After fixing a failing build, append one line with date, symptom, cause, fix and reference to the error index.
 
 ## Documents
 | Topic | Location |

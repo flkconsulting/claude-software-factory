@@ -28,12 +28,13 @@ General rules for this command:
 5. **Project files.** Write, from the templates with placeholders filled:
    - `AGENTS.md` (from `${CLAUDE_PLUGIN_ROOT}/templates/AGENTS.md`)
    - `CLAUDE.md` (from `${CLAUDE_PLUGIN_ROOT}/templates/project-CLAUDE.md`)
-   - `planning/` (from `${CLAUDE_PLUGIN_ROOT}/templates/planning/`), only if the planning location is this repository
+   - `planning/` (from `${CLAUDE_PLUGIN_ROOT}/templates/planning/`), only if the planning location is this repository. The copy includes `ERRORS.jsonl` (the empty error index, used by the skill `error-index`). If `planning/` already exists, add only the missing files and never overwrite existing ones (the diff rule applies).
    For each file that already exists, show a diff and change it only after consent; otherwise skip it and record it as skipped.
+   If the planning location is a separate repository, tell the user that `ERRORS.jsonl` belongs there (path taken from `{{PLANNING_LOCATION}}`) and offer to create the starter file there after asking; the command never creates that repository itself.
 
 6. **Global rules.** Fill `${CLAUDE_PLUGIN_ROOT}/templates/CLAUDE.md` with the confirmed values (see table) and show it, together with `${CLAUDE_PLUGIN_ROOT}/templates/rules/*.md`, as a proposal for `~/.claude/` (`CLAUDE.md` and `rules/`): list new files, and show a diff for files that exist. Write only what the user explicitly approves, file by file.
 
-7. **Wrap-up.** Print two lists: files written and files skipped (with the reason). Remind the user that the hooks take effect in new sessions.
+7. **Wrap-up.** Print two lists: files written and files skipped (with the reason). Name the path of the error index (`ERRORS.jsonl` in the planning location). Remind the user that the hooks take effect in new sessions.
 
 ## Placeholders
 

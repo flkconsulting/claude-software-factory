@@ -153,6 +153,7 @@ Only if configured and useful for the task. Prefer official documentation. No co
 ## 13. Definition of done
 
 - Requirement implemented and architecture-conformant
+- Every requirement checked off against the implementation; no unverified assumption
 - No unnecessary file changes
 - Build/tests green or blockers documented
 - New config documented

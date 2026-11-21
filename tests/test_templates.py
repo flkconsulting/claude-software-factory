@@ -83,3 +83,32 @@ def test_no_source_product_domain_in_templates_and_docs():
         assert "obligations from contracts" not in low, f
         assert "real contract" not in low, f
         assert "price per contract" not in low, f
+
+
+def test_error_index_template_listed_and_empty():
+    index = TEMPLATES / "planning" / "ERRORS.jsonl"
+    assert index.exists()
+    assert index.read_text(encoding="utf-8") == ""
+    readme = (TEMPLATES / "planning" / "README.md").read_text(encoding="utf-8")
+    assert "ERRORS.jsonl" in readme
+
+
+def test_agents_template_points_to_pre_check_and_error_index():
+    text = (TEMPLATES / "AGENTS.md").read_text(encoding="utf-8")
+    assert "pre-check" in text
+    assert "error-index" in text
+
+
+def test_definition_of_done_covers_every_requirement():
+    text = (TEMPLATES / "CLAUDE.md").read_text(encoding="utf-8")
+    section = text.split("## 13. Definition of done", 1)[1].split("\n## ", 1)[0]
+    assert (
+        "Every requirement checked off against the implementation; no unverified assumption"
+        in section
+    )
+
+
+def test_setup_mentions_error_index():
+    text = SETUP.read_text(encoding="utf-8")
+    assert "ERRORS.jsonl" in text
+    assert "error-index" in text
