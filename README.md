@@ -15,6 +15,21 @@ Restart Claude Code (or start a new session) so the hooks take effect.
 
 The hooks are active in every project as soon as the plugin is enabled, with `mode: block` by default. Agent calls without `model` - also from other plugins - are rejected. To only get hints, create `~/.claude/software-factory.json` with `{"mode": "warn"}`; to stop them, disable the plugin.
 
+## Companion plugins and tools
+
+The working method (concept, then plan, then implementation, with a fresh review before every approval) builds on skills that this plugin does not ship. Install them alongside; `/setup-workflow` checks what is missing and suggests the commands, but never installs anything itself.
+
+| Kind | Name | Why | Install |
+| --- | --- | --- | --- |
+| Required plugin | `superpowers` | brainstorming, writing-plans, subagent-driven-development, requesting-code-review, verification-before-completion, using-git-worktrees: the concept → plan → implementation chain and the check before approvals | `/plugin install superpowers@claude-plugins-official` |
+| Recommended plugin | `context7` | current official library documentation (question 3 of `pre-check`) | `/plugin install context7@claude-plugins-official` |
+| Recommended plugin | `claude-md-management` | keeps `CLAUDE.md`/`AGENTS.md` lean and up to date | `/plugin install claude-md-management@claude-plugins-official` |
+| Recommended plugin | `playwright` | screenshots for visual acceptance of user interfaces | `/plugin install playwright@claude-plugins-official` |
+| Required tool | `git`, `gh`, Python 3.10+ | worktrees, pull requests, hooks | package manager of your system |
+| Required tool | `gitleaks` | secret scan before every push | package manager of your system |
+
+If the official marketplace is not available in your installation, add it first with `/plugin marketplace add anthropics/claude-plugins-official`.
+
 ## Set up a project
 
 Run the setup command inside the project you want to equip (namespaced form: `/software-factory:setup-workflow`):

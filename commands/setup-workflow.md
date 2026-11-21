@@ -34,7 +34,12 @@ General rules for this command:
 
 6. **Global rules.** Fill `${CLAUDE_PLUGIN_ROOT}/templates/CLAUDE.md` with the confirmed values (see table) and show it, together with `${CLAUDE_PLUGIN_ROOT}/templates/rules/*.md`, as a proposal for `~/.claude/` (`CLAUDE.md` and `rules/`): list new files, and show a diff for files that exist. Write only what the user explicitly approves, file by file.
 
-7. **Wrap-up.** Print two lists: files written and files skipped (with the reason). Name the path of the error index (`ERRORS.jsonl` in the planning location). Remind the user that the hooks take effect in new sessions.
+7. **Companion plugins and tools.** Check what the method relies on and report what is missing; never install anything yourself.
+   - Plugins: read `~/.claude/plugins/installed_plugins.json` (if it is missing or unreadable, say so and list all plugins as "not verified"). Required: `superpowers`. Recommended: `context7`, `claude-md-management`, `playwright`.
+   - Tools: check with `command -v` for `git`, `gh`, `gitleaks` and `python3` (version 3.10 or newer).
+   - For each missing item print one line with its purpose and the install command from the README section "Companion plugins and tools" (plugins: `/plugin install <name>@claude-plugins-official`; tools: the system package manager). Mark required items as required.
+
+8. **Wrap-up.** Print two lists: files written and files skipped (with the reason). Add the list of missing companion plugins and tools from step 7. Name the path of the error index (`ERRORS.jsonl` in the planning location). Remind the user that the hooks take effect in new sessions.
 
 ## Placeholders
 
