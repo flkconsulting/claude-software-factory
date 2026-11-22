@@ -1,0 +1,2 @@
+PATH=/usr/local/bin:/usr/bin:/bin
+*/3 * * * * flock -n <state-dir>/run.lock <plugin-dir>/scripts/bin/sf-status run >> <state-dir>/run.log 2>&1
