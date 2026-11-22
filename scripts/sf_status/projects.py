@@ -2,12 +2,11 @@
 import json
 import os
 import re
-import subprocess
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import events
+from . import effects, events
 
 NAME_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 SYSTEM_STRAND = "server"  # strand id used for registry events
@@ -81,11 +80,7 @@ def _save(state_dir: Path, items: list[Project]) -> None:
 
 
 def _hooks_dir(folder: Path) -> Path:
-    try:
-        out = subprocess.run(["git", "-C", str(folder), "config", "--get", "core.hooksPath"],
-                             capture_output=True, text=True, timeout=10).stdout.strip()
-    except (OSError, subprocess.SubprocessError):
-        out = ""
+    out = effects.git_config(folder, "core.hooksPath")
     if out:
         p = Path(out).expanduser()
         return p if p.is_absolute() else Path(folder) / p
