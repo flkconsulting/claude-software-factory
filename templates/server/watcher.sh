@@ -10,10 +10,14 @@ if [ "$#" -lt 7 ]; then
 fi
 at="$1"; project="$2"; short="$3"; model="$4"; worktree="$5"; topic="$6"
 shift 6
-SF_STATUS="<plugin-dir>/scripts/bin/sf-status"
+SF_STATUS="${SF_STATUS:-<plugin-dir>/scripts/bin/sf-status}"
+poll="${SF_WATCHER_POLL:-20}"
 
-while [ "$(date +%H:%M)" != "$at" ]; do
-  sleep 20
+# Start once the time of day has been reached (also when started late, same day).
+# SF_WATCHER_NOW (HH:MM) replaces the clock; used by tests.
+now() { echo "${SF_WATCHER_NOW:-$(date +%H:%M)}"; }
+while [[ "$(now)" < "$at" ]]; do
+  sleep "$poll"
 done
 
 if "$@"; then

@@ -1,5 +1,7 @@
 import json
+import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -64,11 +66,62 @@ def test_strand_start_parts_and_commands():
     assert "--dangerously-skip-permissions" in text
 
 
+def _denied(command, patterns):
+    for pat in patterns:
+        inner = pat[len("Bash("):-1]
+        if inner.endswith(":*"):
+            inner = inner[:-2] + " *"
+        regex = ".*".join(re.escape(part) for part in inner.split("*"))
+        if re.fullmatch(regex, command):
+            return True
+    return False
+
+
 def test_settings_json_parses_and_denies_force_push():
     data = json.loads(read("settings.json"))
-    deny = " ".join(data["permissions"]["deny"])
-    for needle in ("main", "release/", "--force", "reset --hard", "git clean", "rm -rf"):
-        assert needle in deny, needle
+    deny = data["permissions"]["deny"]
+    blocked = [
+        "git push origin main", "git push -u origin main", "git push origin feature:main",
+        "git push origin HEAD:refs/heads/main", "git push origin +main", "git push --force origin x",
+        "git push --force-with-lease origin", "git push -f origin x", "git push origin x --force",
+        "git push origin release/1.0", "git push origin HEAD:release/1.0",
+        "git reset --hard HEAD~1", "git clean -fd", "rm -rf x", "rm -fr x", "rm -r -f x",
+    ]
+    for command in blocked:
+        assert _denied(command, deny), command
+    for command in ("git push origin feature/x", "git push -u origin feature/y", "git status", "rm x"):
+        assert not _denied(command, deny), command
+
+
+def _run_watcher(tmp_path, now, precondition, timeout=10):
+    fake = tmp_path / "sf-status"
+    fake.write_text('#!/usr/bin/env bash\necho "$@" >> "$0.log"\n', encoding="utf-8")
+    fake.chmod(0o755)
+    env = {**os.environ, "SF_STATUS": str(fake), "SF_WATCHER_NOW": now, "SF_WATCHER_POLL": "0.1"}
+    cmd = ["bash", str(SERVER / "watcher.sh"), "08:00", "proj", "s1", "sonnet", str(tmp_path), "topic", precondition]
+    result = subprocess.run(cmd, env=env, capture_output=True, text=True, timeout=timeout)
+    log = tmp_path / "sf-status.log"
+    return result, log.read_text(encoding="utf-8") if log.exists() else ""
+
+
+def test_watcher_late_start_launches_immediately(tmp_path):
+    result, log = _run_watcher(tmp_path, "09:30", "true")
+    assert result.returncode == 0
+    assert log.startswith("launch --project proj --short s1")
+
+
+def test_watcher_failed_precondition_notices(tmp_path):
+    result, log = _run_watcher(tmp_path, "09:30", "false")
+    assert result.returncode == 0
+    assert log.startswith("notice --project proj") and "--level warning" in log
+
+
+def test_watcher_waits_before_the_time(tmp_path):
+    import pytest
+
+    with pytest.raises(subprocess.TimeoutExpired):
+        _run_watcher(tmp_path, "07:00", "true", timeout=1)
+    assert not (tmp_path / "sf-status.log").exists()
 
 
 def test_watcher_has_shebang_and_set_e():
