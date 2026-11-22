@@ -34,17 +34,17 @@ def _blank() -> dict:
 
 
 def _add(total: dict, model: str, u: dict, prices: dict) -> None:
-    ein, aus = _num(u.get("input_tokens")), _num(u.get("output_tokens"))
-    lesen = _num(u.get("cache_read_input_tokens"))
-    schreiben = _num(u.get("cache_creation_input_tokens"))
+    inp, out = _num(u.get("input_tokens")), _num(u.get("output_tokens"))
+    cache_read = _num(u.get("cache_read_input_tokens"))
+    cache_write = _num(u.get("cache_creation_input_tokens"))
     cc = u.get("cache_creation") if isinstance(u.get("cache_creation"), dict) else {}
     h1 = _num(cc.get("ephemeral_1h_input_tokens"))
-    m5 = _num(cc.get("ephemeral_5m_input_tokens")) if "ephemeral_5m_input_tokens" in cc else max(schreiben - h1, 0)
+    m5 = _num(cc.get("ephemeral_5m_input_tokens")) if "ephemeral_5m_input_tokens" in cc else max(cache_write - h1, 0)
     total["responses"] += 1
-    total["input"] += ein
-    total["output"] += aus
-    total["cache_read"] += lesen
-    total["cache_write"] += schreiben
+    total["input"] += inp
+    total["output"] += out
+    total["cache_read"] += cache_read
+    total["cache_write"] += cache_write
     p = prices.get(model)
     if total["usd"] is None or not isinstance(p, dict):
         total["usd"] = None
@@ -54,7 +54,7 @@ def _add(total: dict, model: str, u: dict, prices: dict) -> None:
     except (KeyError, TypeError, ValueError):
         total["usd"] = None
         return
-    total["usd"] += (ein * i + aus * o + lesen * c + m5 * i * 1.25 + h1 * i * 2.0) / 1e6
+    total["usd"] += (inp * i + out * o + cache_read * c + m5 * i * 1.25 + h1 * i * 2.0) / 1e6
 
 
 def _responses(path: Path, day: date, counter: dict):
@@ -89,9 +89,10 @@ def _responses(path: Path, day: date, counter: dict):
             except ValueError:
                 continue
             mid = msg.get("id") or d.get("requestId") or d.get("uuid")
-            if mid in seen:
-                continue
-            seen.add(mid)
+            if isinstance(mid, str) and mid:  # a response without any id is always counted
+                if mid in seen:
+                    continue
+                seen.add(mid)
             yield model, u, d.get("cwd")
 
 

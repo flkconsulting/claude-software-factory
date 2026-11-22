@@ -105,3 +105,15 @@ def test_collect_fills_usage(cfg, state, root, projects, monkeypatch):
     assert s.usage is not None and s.usage["by_model"] == {}
     s = collect.collect(replace(cfg, usage_report=False), projects, now, transcripts_root=root)
     assert s.usage is None
+
+
+def test_responses_without_id_are_all_counted(tmp_path, projects):
+    root = tmp_path / "projects" / "-work-alpha"
+    root.mkdir(parents=True)
+    line = {"cwd": "/work/alpha", "message": {"model": "claude-sonnet-5-5", "usage": {"input_tokens": 10, "output_tokens": 1}},
+            "timestamp": "2026-11-22T10:00:00Z"}
+    (root / "s9.jsonl").write_text("\n".join(json.dumps(line) for _ in range(2)) + "\n", encoding="utf-8")
+    ts = datetime(2026, 11, 22, 13, tzinfo=timezone.utc).timestamp()
+    os.utime(root / "s9.jsonl", (ts, ts))
+    r = usage.summarize(tmp_path / "projects", DAY, PRICES, projects)
+    assert r["by_model"]["claude-sonnet-5-5"]["responses"] == 2
