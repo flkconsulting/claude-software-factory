@@ -6,6 +6,7 @@ so a failed write leaves everything to be found again by the next run.
 """
 import json
 import os
+import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -25,6 +26,7 @@ class Triggers(list):
     """Trigger ids plus the marker state to write once they are adopted."""
 
     pending: dict
+    notices: list  # (project, sanitized short cell) of approved rows that cannot become a trigger
 
 
 def _stamp(when: datetime) -> str:
@@ -66,11 +68,11 @@ def collect_triggers(cfg: ServerConfig, projects: list[Project], state_dir: Path
     state_dir = Path(state_dir)
     stored = _load(state_dir / "markers" / f"{READER}.json")
     offsets = events.load_marker(state_dir, READER)
-    old_rows = stored.get("rows") if isinstance(stored.get("rows"), dict) else None
-    rows: dict[str, bool] = dict(old_rows or {})
+    rows: dict[str, bool] = dict(stored["rows"]) if isinstance(stored.get("rows"), dict) else {}
     seen = {k: v for k, v in (stored.get("seen") or {}).items()
             if isinstance(stored.get("seen"), dict) and (t := _parse(v)) and now - t < DEBOUNCE}
     found = Triggers()
+    found.notices = []
     new_offsets = dict(offsets)
 
     def add(trigger: str, debounce: bool) -> None:
@@ -101,9 +103,12 @@ def collect_triggers(cfg: ServerConfig, projects: list[Project], state_dir: Path
             key = f"{project.name}/{row_hash}"
             if key in rows:
                 continue
-            rows[key] = True
-            if old_rows is not None and events.valid_id(short.lower()):  # first run only records the baseline
+            if events.valid_id(short.lower()):
+                rows[key] = True
                 add(f"approved:{short.lower()}", False)
+            else:  # remembered with False so the warning comes once per row hash
+                rows[key] = False
+                found.notices.append((project.name, re.sub(r"[^A-Za-z0-9 _.-]", "?", short)[:40]))
 
     last = _parse(stored.get("last_safety"))
     last_safety = stored.get("last_safety") if last else None
@@ -134,6 +139,10 @@ def commit_triggers(state_dir: Path, triggers: Triggers, now: datetime | None = 
     data.setdefault("last_run", None)
     _atomic(path, data)
     _atomic(state_dir / "markers" / f"{READER}.json", triggers.pending)
+    for project, short in triggers.notices:
+        events.append(state_dir, project, {
+            "kind": "notice", "strand": "server", "level": "warning", "title": "wave plan row skipped",
+            "text": f"Approved row with short {short!r} has no valid id (a-z, 0-9, hyphens) and starts nothing."}, now)
 
 
 def fast_forward(cfg: ServerConfig, projects: list[Project], state_dir: Path, now: datetime) -> None:

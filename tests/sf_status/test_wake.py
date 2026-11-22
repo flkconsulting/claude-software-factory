@@ -54,7 +54,7 @@ def test_answer_trigger(cfg, state, proj):
 
 def test_new_approved_row_once(cfg, state, proj):
     plan(proj, "| w1 | api | no | now | b | - | - |")
-    run(cfg, [proj], state, T0)  # baseline
+    run(cfg, [proj], state, T0)
     plan(proj, "| w1 | api | yes | now | b | - | - |")
     assert "approved:w1" in run(cfg, [proj], state, T0 + timedelta(minutes=5))
     assert "approved:w1" not in run(cfg, [proj], state, T0 + timedelta(minutes=10))
@@ -111,3 +111,20 @@ def test_fast_forward_raises_nothing(cfg, state, proj):
     plan(proj, "| w1 | api | yes | now | b | - | - |")
     wake.fast_forward(cfg, [proj], state, T0)
     assert run(cfg, [proj], state, T0 + timedelta(minutes=1)) == []
+
+
+def test_approval_before_first_run_triggers(cfg, state, proj):
+    plan(proj, "| w1 | api | yes | now | b | - | - |")
+    assert "approved:w1" in run(cfg, [proj], state, T0)
+
+
+def test_invalid_short_not_stored_and_noticed_once(cfg, state, proj):
+    plan(proj, "| W 1;x | api | yes | now | b | - | - |")
+    got = run(cfg, [proj], state, T0)
+    assert not [t for t in got if t.startswith("approved")]
+    stored = json.loads((state / "markers" / "wake.json").read_text())
+    assert list(stored["rows"].values()) == [False]
+    run(cfg, [proj], state, T0 + timedelta(minutes=5))
+    evs = [e for e in events.read(state, "alpha")[0] if e["kind"] == "notice"]
+    assert len(evs) == 1 and evs[0]["level"] == "warning" and evs[0]["strand"] == "server"
+    assert evs[0]["title"] == "wave plan row skipped" and ";" not in evs[0]["text"]
