@@ -119,3 +119,25 @@ def test_write_atomic(tmp_path):
 def test_write_without_triggers_file(tmp_path):
     render.write(tmp_path, make_state(), NOW)
     assert (tmp_path / "STATUS.md").exists()
+
+
+def test_answer_line_only_for_valid_ids():
+    s = make_state()
+    s.questions = [{"id": 'x"; rm -rf ~; "', "project": "alpha", "question": "q"},
+                   {"project": "alpha", "question": "no id"},
+                   {"id": "s1-2", "project": "alpha", "question": "ok"}]
+    md = render.render_markdown(s, NOW)
+    assert "rm -rf" not in "".join(ln for ln in md.splitlines() if ln.startswith("sf-status"))
+    assert md.count("sf-status answer") == 1
+    assert 'sf-status answer --project alpha --id s1-2 "..."' in md
+    assert md.count("id invalid") == 2
+
+
+def test_markdown_html_defused():
+    s = make_state()
+    s.strands["alpha/s1"].text = '<img src=http://x/y> [a](http://z) `c`'
+    s.questions[0]["question"] = "<script>x</script> & <a href=http://q>"
+    md = render.render_markdown(s, NOW)
+    assert "<img" not in md and "<script" not in md and "<a " not in md
+    assert "&lt;script&gt;" in md and "&amp;" in md
+    assert "\\[a\\](" in md and "[a](" not in md and "\\`c\\`" in md

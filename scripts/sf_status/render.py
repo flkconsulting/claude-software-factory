@@ -9,9 +9,11 @@ import html
 import json
 import os
 import re
+import shlex
 from datetime import datetime
 from pathlib import Path
 
+from . import events
 from .collect import State
 
 CELL_MAX = 200
@@ -64,11 +66,15 @@ def _needs_you(state: State) -> list:
     if not qs:
         b.append(("p", "None."))
     for q in qs:
-        project, qid = _line(_get(q, "project", "?"), 80), _line(_get(q, "id", "?"), 80)
+        raw_project, raw_id = q.get("project"), q.get("id")
+        project, qid = _line(raw_project if raw_project is not None else "?", 80), _line(raw_id if raw_id is not None else "?", 80)
         b.append(("li", f"{project} / {qid}: {_line(_get(q, 'question'))}"))
         b.append(("p", f"Background: {_line(_get(q, 'background'))}"))
         b.append(("p", f"Recommendation: {_line(_get(q, 'recommendation'))}"))
-        b.append(("code", f'sf-status answer --project {project} --id {qid} "..."'))
+        if events.valid_id(raw_project) and events.valid_id(raw_id):
+            b.append(("code", f'sf-status answer --project {shlex.quote(raw_project)} --id {shlex.quote(raw_id)} "..."'))
+        else:
+            b.append(("p", "id invalid, no answer line."))
     ts = _dicts(state.tasks)
     b.append(("h3", f"Open tasks ({len(ts)})"))
     if not ts:
@@ -175,6 +181,13 @@ def _stamp(now: datetime) -> str:
     return now.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def _md(text: str) -> str:
+    """Defuse Markdown/HTML in free text: no raw HTML, links or code spans."""
+    for ch, rep in (("&", "&amp;"), ("<", "&lt;"), (">", "&gt;"), ("`", "\\`"), ("[", "\\["), ("]", "\\]")):
+        text = text.replace(ch, rep)
+    return text
+
+
 def render_markdown(state: State, now: datetime) -> str:
     out = ["# Status", "", f"Generated: {_stamp(now)}", ""]
     for title, blocks in _sections(state):
@@ -182,18 +195,18 @@ def render_markdown(state: State, now: datetime) -> str:
         for blk in blocks:
             kind = blk[0]
             if kind == "h3":
-                out += [f"### {blk[1]}", ""]
+                out += [f"### {_md(blk[1])}", ""]
             elif kind == "p":
-                out += [blk[1], ""]
+                out += [_md(blk[1]), ""]
             elif kind == "li":
-                out.append(f"- {blk[1]}")
+                out.append(f"- {_md(blk[1])}")
             elif kind == "code":
                 out += ["```", blk[1], "```", ""]
             elif kind == "table":
                 out.append("| " + " | ".join(blk[1]) + " |")
                 out.append("|" + " --- |" * len(blk[1]))
                 for row in blk[2]:
-                    out.append("| " + " | ".join(c.replace("|", "\\|") for c in row) + " |")
+                    out.append("| " + " | ".join(_md(c).replace("|", "\\|") for c in row) + " |")
                 out.append("")
         if out[-1] != "":
             out.append("")
