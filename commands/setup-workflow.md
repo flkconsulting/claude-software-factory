@@ -15,7 +15,7 @@ General rules for this command:
 
 ## Procedure
 
-1. **Variant.** Ask which variant to set up. Offer only "A - one machine, subagents and worktrees". Mention that variant B is "stage 2, not yet available". Continue only with A.
+1. **Variant.** Ask which variant to set up. Offer "A - one machine, subagents and worktrees" and "B - local plus server (stage 2)". Variant B does everything A does and adds the server steps 8 to 12 below (wrap-up is step 13); it needs a prepared server, see `docs/05-server-setup.md` in the plugin repository. If the user is unsure, recommend A and say that B can be added later.
 
 2. **Project facts.** Detect the project name, a one-sentence purpose and the build, test and lint commands from the repository (README, package manifests, Makefile, CI files, scripts). Show what you found and let the user confirm or correct each value. If something cannot be detected, ask.
 
@@ -39,7 +39,17 @@ General rules for this command:
    - Tools: check with `command -v` for `git`, `gh`, `gitleaks` and `python3` (version 3.10 or newer).
    - For each missing item print one line with its purpose and the install command from the README section "Companion plugins and tools" (plugins: `/plugin install <name>@claude-plugins-official`; tools: the system package manager). Mark required items as required.
 
-8. **Wrap-up.** Print two lists: files written and files skipped (with the reason). Add the list of missing companion plugins and tools from step 7. Name the path of the error index (`ERRORS.jsonl` in the planning location). Remind the user that the hooks take effect in new sessions.
+8. **Server checks (variant B only).** Check with `command -v` for `tmux`, `crontab` and `flock` and for `sf-status` on the `PATH`. This command never installs anything: for each missing item print one line with its purpose and the install hint from `docs/05-server-setup.md`, and stop here until the required items exist. On macOS, `flock` comes from `util-linux`, and `readlink -f` needs macOS 12.3 or newer.
+
+9. **Server settings (variant B only).** Propose the section `server` of `~/.claude/software-factory.json` as a diff (the general rule for `~/.claude/` applies). Show `"enabled": true` and `"supervisor": false` and name the other defaults (stall 45 minutes, 2 heavy-run slots, 4 strands, state folder `~/.claude/software-factory/server`); change a value only if the user asks.
+
+10. **Register the project (variant B only).** Propose `sf-status project add <name> --title <title> --folder <project-folder>`, with `--main-branch`, `--supervisor` and `--never-touch` as needed, built from the confirmed project facts. Run it only after the user agrees. If it refuses because the pre-push hook with `gitleaks` is missing, report that and let the user fix it; do not write the hook yourself.
+
+11. **Wave plan and supervisor task (variant B only).** Copy `${CLAUDE_PLUGIN_ROOT}/templates/server/wave-plan.md` to `planning/wave-plan.md` and `${CLAUDE_PLUGIN_ROOT}/templates/server/supervisor-task.md` to `<state>/supervisor/task.md`, where `<state>` is the output of `sf-status config state_dir`. Never overwrite an existing file (diff rule). Leave every approval cell at `no`; approvals are the user's own words and are never written by you.
+
+12. **Cron and permissions (variant B only).** Show, do not write: the cron line from `${CLAUDE_PLUGIN_ROOT}/templates/server/crontab.txt` with the real paths filled in, and the deny entries of `${CLAUDE_PLUGIN_ROOT}/templates/server/settings.json` as additions to the `settings.json` of the work user. Say that the deny list is best effort and that the pre-push hook and branch protection are the real guard. Write the crontab or the `settings.json` only after explicit consent for each; never use `--dangerously-skip-permissions`.
+
+13. **Wrap-up.** Print two lists: files written and files skipped (with the reason). Add the list of missing companion plugins and tools from step 7. For variant B add: the registered project, the files from steps 11 and 12 written or skipped, and the reminder that the cron line only takes effect once it is in the crontab and `server.enabled` is `true`. Name the path of the error index (`ERRORS.jsonl` in the planning location). Remind the user that the hooks take effect in new sessions.
 
 ## Placeholders
 

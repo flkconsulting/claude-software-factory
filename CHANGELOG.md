@@ -2,7 +2,24 @@
 
 All notable changes to this project are documented in this file.
 
-## [Unreleased]
+## [0.2.0]
+
+### Added
+- Stage 2, variant B (local plus server), additional and switchable off: without a `server` section or with `server.enabled` not `true`, nothing of it acts.
+- `sf-status` (`scripts/bin/sf-status`, package `scripts/sf_status/`): append-only event log, project registration with a gitleaks pre-push check, state collector with stall detection (reported once per stall), deterministic `STATUS.md` and escaped, self-contained `status.html`, usage and model report (list-price equivalent, not an invoice), wake triggers and wave plan parser, one cron run, short supervisor run per trigger bundle with retry limit, strand launch in tmux and follow-up delivery, answers to questions.
+- `scripts/heavy-run.sh`: heavy-run limiter with `server.heavy_slots` slots.
+- `templates/server/`: supervisor task, wave plan, strand start file, watcher script, cron line and a best-effort deny list for `settings.json`.
+- Skill `delegate-work`: server mode and watcher.
+- `docs/05-server-setup.md`: server setup guide.
+- `/setup-workflow` variant B: checks `tmux`, `crontab`, `flock`, proposes the `server` settings, project registration, wave plan, supervisor task, cron line and permission additions (written only after consent).
+
+### Changed
+- Plugin and marketplace manifests: version 0.2.0.
+- `docs/04` and README describe variant B as available.
+
+## [0.1.0]
+
+Stage 1 (variant A). Entries below were collected under "Unreleased" before.
 
 ### Added
 - Plugin and marketplace manifests (version 0.1.0).

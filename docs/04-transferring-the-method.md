@@ -4,7 +4,7 @@
 
 **Effect.** Local is enough as long as the work fits into one session per day and nothing has to run at night. Once longer runs, several parallel strands or work with a closed laptop are needed, a server pays off. A project can start small and local and switch later: the wave plan and the status board stay, only the supervisor moves to the server.
 
-**Limits.** This plugin (Stage 1) implements **variant A, purely local**. Variant B, local plus server, is **Stage 2** and not yet available; it is described here so you can judge when to wait for it and so that nothing you set up now has to be thrown away.
+**Limits.** This plugin implements **variant A, purely local** (Stage 1) and **variant B, local plus server** (Stage 2, available from version 0.2.0). Stage 2 is additional and can be switched off; without a `server` section in the settings nothing of it is active. The server setup is in [05 - Server setup](05-server-setup.md).
 
 ## Decision aid
 
@@ -56,11 +56,19 @@
 | Skill `workflow-retrospective` | key figures and at most three evidenced improvements | `skills/workflow-retrospective/` |
 | Setup | guided installation | `commands/setup-workflow.md` |
 
-Not in Stage 1 (Stage 2): supervisor, watcher, status board, heavy-run limiter, model display, server setup.
+Stage 2 adds, for variant B:
+
+| Building block | Purpose | Where |
+| --- | --- | --- |
+| `sf-status` | status board, events, wake triggers, supervisor run, strand start, follow-ups, answers | `scripts/bin/sf-status`, `scripts/sf_status/` |
+| Heavy-run limiter | at most N heavy runs at once | `scripts/heavy-run.sh` |
+| Server templates | supervisor task, wave plan, strand start file, watcher, cron line, deny list | `templates/server/` |
+| Skill `delegate-work`, server mode and watcher | start strands on the server, start at a time with a precondition | `skills/delegate-work/` |
+| Server setup | from an empty server to the first wave | `docs/05-server-setup.md` |
 
 ## First steps
 
-- [ ] Choose the variant (use the decision aid above; Stage 1 offers variant A).
+- [ ] Choose the variant (use the decision aid above; `/setup-workflow` offers A and B).
 - [ ] Install the plugin and run `/setup-workflow` in the new project.
 - [ ] Let the first concept be written with mock-ups and reviewed by a fresh reviewer.
 - [ ] Approve the first wave as a quote in the plan.

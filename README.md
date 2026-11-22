@@ -2,7 +2,7 @@
 
 A transferable way of working with Claude Code, packaged as a plugin: guard hooks for the model choice of helper agents and for the context load of long sessions, rule and project templates, five skills for delegating work, shipping releases, running retrospectives, checking evidence before planning (`pre-check`) and keeping an error index (`error-index`), and a guided setup command for new projects.
 
-This is **Stage 1**: everything runs on one machine, with subagents and git worktrees (variant A). Server-based steering (variant B) is Stage 2 and not yet available.
+Two variants: **A** runs everything on one machine, with subagents and git worktrees (Stage 1). **B** adds a server with tmux strands, a status board and an optional supervisor (Stage 2, additional and switchable off). See [Server](#server).
 
 ## Install
 
@@ -27,6 +27,7 @@ The working method (concept, then plan, then implementation, with a fresh review
 | Recommended plugin | `playwright` | screenshots for visual acceptance of user interfaces | `/plugin install playwright@claude-plugins-official` |
 | Required tool | `git`, `gh`, Python 3.10+ | worktrees, pull requests, hooks | package manager of your system |
 | Required tool | `gitleaks` | secret scan before every push | package manager of your system |
+| Variant B tools | `tmux`, `cron` (`crontab`), `flock` | strands, the cron run, heavy-run slots | package manager of the server (macOS: `flock` from `util-linux`) |
 
 If the official marketplace is not available in your installation, add it first with `/plugin marketplace add anthropics/claude-plugins-official`.
 
@@ -44,6 +45,10 @@ It asks one question at a time, detects project facts from the repository, and s
 - a proposal for `~/.claude/CLAUDE.md` and `~/.claude/rules/`;
 - the per-user settings file `~/.claude/software-factory.json`.
 
+## Server
+
+Variant B (Stage 2) runs longer work on a dedicated server: strands in tmux, a cron run every three minutes, a status board (`STATUS.md`, `status.html`), an optional supervisor that starts only approved strands, and a limiter for heavy runs. Choose variant B in `/setup-workflow`; it checks `tmux`, `crontab` and `flock`, never installs anything, and writes the cron line and permission additions only after your consent. The server layer is off until `server.enabled` is `true` in `~/.claude/software-factory.json`. Step by step: [Server setup](docs/05-server-setup.md).
+
 ## What is in the box
 
 | Building block | What it does | Where |
@@ -57,6 +62,9 @@ It asks one question at a time, detects project facts from the repository, and s
 | Skill `pre-check` | Five evidence questions before a plan or implementation, no scoring | `skills/pre-check/` |
 | Skill `error-index` | Searchable per-project list of solved error causes with a small script | `skills/error-index/` |
 | Templates | Global and project instructions, planning folder, rules (model choice, session handover, briefing, final report, structured questions) | `templates/` |
+| `sf-status` | Server state, status board, wake triggers, supervisor run, strand launch and answers (variant B) | `scripts/bin/sf-status`, `scripts/sf_status/` |
+| Heavy-run limiter | Runs a heavy command only while one of N slots is free (variant B) | `scripts/heavy-run.sh` |
+| Server templates | Supervisor task, wave plan, strand start file, watcher, cron line, deny list (variant B) | `templates/server/` |
 | Secret scan helpers | Pre-push hook and a blocklist check for this repository's own contributors | `scripts/` |
 
 ## Settings
@@ -72,6 +80,7 @@ Per-user settings live in `~/.claude/software-factory.json`; hook state in `~/.c
 
 - `mode`: `block` (default) enforces the rules; `warn` only shows hints.
 - `context_thresholds`: two increasing token counts. The first asks for a handover at the next natural break, the second asks for one immediately.
+- `server` (optional, variant B): a section with `enabled` (default `false`) and further settings; see [Server setup](docs/05-server-setup.md). Without it nothing of Stage 2 is active.
 
 An unreadable or invalid file falls back to the defaults; a hook never fails with an error.
 
@@ -83,6 +92,7 @@ The `docs/` folder explains where the method comes from and how to apply it:
 2. [Lessons learned](docs/02-lessons-learned.md)
 3. [The working method](docs/03-working-method.md)
 4. [Transferring the method](docs/04-transferring-the-method.md)
+5. [Server setup](docs/05-server-setup.md)
 
 ## Development
 
