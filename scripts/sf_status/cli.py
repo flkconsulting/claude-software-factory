@@ -3,9 +3,10 @@ import argparse
 import os
 import sys
 from dataclasses import fields
+from pathlib import Path
 from typing import Callable
 
-from . import events
+from . import events, projects
 from .config import ServerConfig, load_server_config
 
 
@@ -32,15 +33,20 @@ def _text(p, required: bool = True) -> None:
     p.add_argument("text", nargs=None if required else "?")
 
 
-def _emit(args, event: dict) -> dict | int:
+def _registered(state_dir: Path, name: str) -> bool:
+    if any(p.name == name for p in projects.load(state_dir)):
+        return True
+    print(f"sf-status: project {name!r} is not registered (sf-status project add)", file=sys.stderr)
+    return False
+
+
+def _emit(args, event: dict, reserved_check: bool = True) -> dict | int:
     """Append an event; returns the stored event or an exit code."""
     state_dir = load_server_config().state_dir
-    # Until the project registry exists (task 3) only the event folder is checked.
-    if not (state_dir / "events").is_dir():
-        print("sf-status: server state folder not found; run the server setup first", file=sys.stderr)
+    if not _registered(state_dir, args.project):
         return 1
     strand = event["strand"]
-    if strand == "supervisor" and os.environ.get("SF_SOURCE") != "supervisor":
+    if reserved_check and strand == "supervisor" and os.environ.get("SF_SOURCE") != "supervisor":
         print("sf-status: strand id 'supervisor' is reserved for the supervisor", file=sys.stderr)
         return 2
     try:
@@ -104,6 +110,17 @@ def _run_question(args) -> int:
         print("sf-status: --nr must be at least 1", file=sys.stderr)
         return 2
     qid = f"{args.strand}-{args.nr}"
+    state_dir = load_server_config().state_dir
+    if _registered(state_dir, args.project):
+        try:
+            history, _ = events.read(state_dir, args.project)
+        except ValueError as e:
+            print(f"sf-status: {e}", file=sys.stderr)
+            return 2
+        if any(e.get("kind") == "question" and e.get("id") == qid for e in history):
+            print(f"sf-status: question {qid!r} was already asked in project {args.project!r}",
+                  file=sys.stderr)
+            return 1
     ev = {"kind": "question", "strand": args.strand, "id": qid, "question": args.text,
           "background": args.background, "recommendation": args.recommendation}
     result = _emit(args, ev)
@@ -122,8 +139,7 @@ def _add_answer(sub) -> None:
 
 def _run_answer(args) -> int:
     state_dir = load_server_config().state_dir
-    if not (state_dir / "events").is_dir():
-        print("sf-status: server state folder not found; run the server setup first", file=sys.stderr)
+    if not _registered(state_dir, args.project):
         return 1
     try:
         history, _ = events.read(state_dir, args.project)
@@ -135,7 +151,7 @@ def _run_answer(args) -> int:
         print(f"sf-status: no open question {args.id!r} in project {args.project!r}", file=sys.stderr)
         return 1
     ev = {"kind": "answer", "strand": question["strand"], "question_id": args.id, "text": args.text}
-    return _finish(_emit(args, ev))
+    return _finish(_emit(args, ev, reserved_check=False))
 
 
 def _add_task(sub) -> None:
@@ -172,6 +188,48 @@ def _run_notice(args) -> int:
     return _finish(_emit(args, ev))
 
 
+# ---- project registry -------------------------------------------------------
+
+def _add_project(sub) -> None:
+    p = sub.add_parser("project", help="register, remove or list projects")
+    ps = p.add_subparsers(dest="project_command", required=True)
+    a = ps.add_parser("add", help="register a project")
+    a.add_argument("name")
+    a.add_argument("--title", required=True)
+    a.add_argument("--folder", required=True)
+    a.add_argument("--main-branch", default="main")
+    a.add_argument("--supervisor", choices=("yes", "no"), default="no")
+    a.add_argument("--approval-quote")
+    a.add_argument("--wave-plan", default="planning/wave-plan.md")
+    a.add_argument("--never-touch", default="")
+    r = ps.add_parser("remove", help="unregister a project (its event file stays)")
+    r.add_argument("name")
+    ps.add_parser("list", help="list registered projects")
+
+
+def _run_project(args) -> int:
+    state_dir = load_server_config().state_dir
+    try:
+        if args.project_command == "add":
+            projects.add(state_dir, projects.Project(
+                name=args.name, title=args.title, folder=os.path.abspath(os.path.expanduser(args.folder)),
+                main_branch=args.main_branch, supervisor=args.supervisor == "yes",
+                approval_quote=args.approval_quote, wave_plan=args.wave_plan,
+                never_touch=[x.strip() for x in args.never_touch.split(",") if x.strip()]))
+        elif args.project_command == "remove":
+            projects.remove(state_dir, args.name)
+        else:
+            for p in projects.load(state_dir):
+                print(f"{p.name}\t{p.title}\t{p.folder}\tsupervisor={'yes' if p.supervisor else 'no'}")
+    except projects.ProjectError as e:
+        print(f"sf-status: {e}", file=sys.stderr)
+        return 1
+    except (OSError, ValueError) as e:
+        print(f"sf-status: {e}", file=sys.stderr)
+        return 1
+    return 0
+
+
 # name -> (function adding the subparser, function running it with parsed args)
 # Later tasks append their own entries here.
 COMMANDS: dict[str, tuple[Callable, Callable[[argparse.Namespace], int]]] = {
@@ -182,6 +240,7 @@ COMMANDS: dict[str, tuple[Callable, Callable[[argparse.Namespace], int]]] = {
     "answer": (_add_answer, _run_answer),
     "task": (_add_task, _run_task),
     "notice": (_add_notice, _run_notice),
+    "project": (_add_project, _run_project),
 }
 
 

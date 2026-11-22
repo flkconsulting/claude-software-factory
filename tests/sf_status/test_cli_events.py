@@ -1,6 +1,6 @@
 import pytest
 
-from sf_status import cli, events
+from sf_status import cli, events, projects
 
 
 @pytest.fixture
@@ -9,6 +9,12 @@ def env(tmp_path, monkeypatch):
     monkeypatch.delenv("SF_SOURCE", raising=False)
     sdir = tmp_path / ".claude" / "software-factory" / "server"
     (sdir / "events").mkdir(parents=True)
+    repo = tmp_path / "repo"
+    (repo / ".git" / "hooks").mkdir(parents=True)
+    hook = repo / ".git" / "hooks" / "pre-push"
+    hook.write_text("gitleaks\n")
+    hook.chmod(0o755)
+    projects.add(sdir, projects.Project(name="p", title="P", folder=str(repo)))
     return sdir
 
 
@@ -21,7 +27,7 @@ def test_question_prints_id(env, capsys):
     assert cli.main(_q()) == 0
     assert capsys.readouterr().out.strip() == "a-1"
     got, _ = events.read(env, "p")
-    assert got[0]["id"] == "a-1" and got[0]["question"] == "What now?"
+    assert got[1]["id"] == "a-1" and got[1]["question"] == "What now?"
 
 
 def test_answer_unknown_question_exit_1(env):
@@ -33,7 +39,7 @@ def test_answer_twice_exit_1(env):
     assert cli.main(["answer", "--project", "p", "--id", "a-1", "yes"]) == 0
     assert cli.main(["answer", "--project", "p", "--id", "a-1", "again"]) == 1
     got, _ = events.read(env, "p")
-    assert [e["kind"] for e in got] == ["question", "answer"]
+    assert [e["kind"] for e in got] == ["project_added", "question", "answer"]
 
 
 def test_report_state_validated(env):
@@ -47,11 +53,11 @@ def test_text_with_newlines_stored_verbatim(env):
     assert cli.main(["notice", "--project", "p", "--strand", "a", "--level", "info",
                      "--title", "t", text]) == 0
     got, _ = events.read(env, "p")
-    assert got[0]["text"] == text
+    assert got[1]["text"] == text
 
 
-def test_missing_events_dir_exit_1(env):
-    (env / "events").rmdir()
+def test_unregistered_project_exit_1(env):
+    (env / "projects.json").unlink()
     assert cli.main(["start", "--project", "p", "--strand", "a", "--topic", "t", "x"]) == 1
 
 
@@ -66,7 +72,7 @@ def test_task_and_done(env):
     assert cli.main(["task", "--project", "p", "--strand", "a", "--id", "t1", "--why", "w", "Title"]) == 0
     assert cli.main(["task", "--project", "p", "--strand", "a", "--done", "t1"]) == 0
     got, _ = events.read(env, "p")
-    assert [e["kind"] for e in got] == ["task", "task_done"]
+    assert [e["kind"] for e in got] == ["project_added", "task", "task_done"]
 
 
 def test_strand_required(env):

@@ -126,7 +126,7 @@ def load_marker(state_dir: Path, reader: str) -> dict[str, int]:
         return {}
     if not isinstance(data, dict):
         return {}
-    return {k: v for k, v in data.items() if isinstance(v, int) and not isinstance(v, bool)}
+    return {k: v for k, v in data.items() if isinstance(v, int) and not isinstance(v, bool) and v >= 0}
 
 
 def save_marker(state_dir: Path, reader: str, offsets: dict[str, int]) -> None:
