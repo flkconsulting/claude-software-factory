@@ -128,16 +128,31 @@ def test_exception_in_claude_is_failure(env, monkeypatch):
 
 
 def test_parked_after_retry_limit_with_warning(env):
-    env.set([("done:a", 2), ("safety", 0)])
-    assert supervisor.run_once(env.cfg, env.state, NOW) == "ok"  # safety still runs
+    env.set([("done:a", 0)])
+    env.behavior["write_notes"] = False
+    for n in range(1, 4):  # retry_limit = 3 real runs
+        assert supervisor.run_once(env.cfg, env.state, NOW) == "failed"
+        assert len(env.calls) == n
+    assert env.notices() and all(x["title"] == "supervisor run failed" for x in env.notices())
+    before = len(env.notices())
+    env.set([(i["id"], i["tries"]) for i in env.triggers()["open"] if i["id"] == "done:a"])
+    assert supervisor.run_once(env.cfg, env.state, NOW) == "parked"
+    assert len(env.calls) == 3
     data = env.triggers()
     assert [p["id"] for p in data["parked"]] == ["done:a"] and data["open"] == []
+    new = env.notices()[before:]
+    assert len(new) == 1 and new[0]["level"] == "warning" and new[0]["title"] == "supervisor triggers parked"
+
+
+def test_parked_while_others_still_run(env):
+    env.set([("done:a", 3), ("safety", 0)])
+    assert supervisor.run_once(env.cfg, env.state, NOW) == "ok"
+    assert [p["id"] for p in env.triggers()["parked"]] == ["done:a"]
     assert "done:a" not in env.calls[0]["prompt"]
-    assert len([n for n in env.notices() if n["level"] == "warning"]) == 1
 
 
 def test_only_parked_no_claude_call(env):
-    env.set([("done:a", 2)])
+    env.set([("done:a", 3)])
     assert supervisor.run_once(env.cfg, env.state, NOW) == "parked"
     assert env.calls == []
     assert len(env.notices()) == 1

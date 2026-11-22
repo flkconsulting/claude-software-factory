@@ -122,10 +122,10 @@ def _locked(cfg: ServerConfig, state_dir: Path, base: Path, now: datetime) -> st
         return "nothing"
     project = _supervisor_project(state_dir)
     aborted = any(i["tries"] > 0 for i in data["open"])  # an earlier run never proved success
+    gone = [i for i in data["open"] if i["tries"] >= cfg.retry_limit]  # retry_limit real runs are used up
+    data["open"] = [i for i in data["open"] if i["tries"] < cfg.retry_limit]
     for i in data["open"]:
         i["tries"] += 1
-    gone = [i for i in data["open"] if i["tries"] >= cfg.retry_limit]
-    data["open"] = [i for i in data["open"] if i["tries"] < cfg.retry_limit]
     data["parked"] = data["parked"] + gone
     _atomic(path, data)
     if gone:
