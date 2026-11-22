@@ -146,6 +146,16 @@ def _reset_stall(entry: dict) -> bool:
     return changed
 
 
+def running_strand_sessions(projects: list[Project], name: str) -> list[str]:
+    """tmux sessions '<name>-<strand>' whose pane lies in project `name`, without the supervisor."""
+    found = []
+    for session, path in effects.tmux_sessions():
+        if (session.startswith(name + "-") and project_for_path(projects, Path(path)) == name
+                and session != f"{name}-{SUPERVISOR_STRAND}"):
+            found.append(session)
+    return found
+
+
 def collect(cfg: ServerConfig, projects: list[Project], now: float,
             transcripts_root: Path | None = None) -> State:
     state_dir = Path(cfg.state_dir)

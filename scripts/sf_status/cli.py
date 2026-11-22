@@ -9,7 +9,7 @@ from dataclasses import fields
 from pathlib import Path
 from typing import Callable
 
-from . import collect, effects, events, projects, render, supervisor, wake
+from . import collect, effects, events, launch, projects, render, supervisor, wake
 from .config import DEFAULT_STATE_DIR, ServerConfig, load_server_config
 
 
@@ -355,6 +355,48 @@ def _run_wake(args) -> int:
     return 0
 
 
+# ---- launch and deliver -----------------------------------------------------
+
+def _project(name: str, state_dir: Path):
+    for p in projects.load(state_dir):
+        if p.name == name:
+            return p
+    print(f"sf-status: project {name!r} is not registered (sf-status project add)", file=sys.stderr)
+    return None
+
+
+def _add_launch(sub) -> None:
+    p = sub.add_parser("launch", help="start a strand in tmux from its start file")
+    p.add_argument("--project", required=True)
+    p.add_argument("--short", required=True)
+    p.add_argument("--model", required=True)
+    p.add_argument("--worktree", required=True)
+    p.add_argument("--topic", required=True)
+
+
+def _run_launch(args) -> int:
+    cfg = load_server_config()
+    project = _project(args.project, Path(cfg.state_dir))
+    if project is None:
+        return 1
+    return launch.launch(cfg, project, args.short, args.model,
+                         Path(os.path.abspath(os.path.expanduser(args.worktree))), args.topic)
+
+
+def _add_deliver(sub) -> None:
+    p = sub.add_parser("deliver", help="append a follow-up to the start file and point the strand to it")
+    _common(p)
+    _text(p)
+
+
+def _run_deliver(args) -> int:
+    cfg = load_server_config()
+    project = _project(args.project, Path(cfg.state_dir))
+    if project is None:
+        return 1
+    return launch.deliver(cfg, project, args.strand, args.text)
+
+
 # name -> (function adding the subparser, function running it with parsed args)
 # Later tasks append their own entries here.
 COMMANDS: dict[str, tuple[Callable, Callable[[argparse.Namespace], int]]] = {
@@ -369,6 +411,8 @@ COMMANDS: dict[str, tuple[Callable, Callable[[argparse.Namespace], int]]] = {
     "run": (_add_run, _run_run),
     "wake": (_add_wake, _run_wake),
     "supervise": (_add_supervise, _run_supervise),
+    "launch": (_add_launch, _run_launch),
+    "deliver": (_add_deliver, _run_deliver),
 }
 
 
