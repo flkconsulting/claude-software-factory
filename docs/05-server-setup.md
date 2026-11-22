@@ -29,13 +29,13 @@ If you run the scripts on macOS instead of Linux: `heavy-run.sh` uses `readlink 
 
 ## 2. Install the packages
 
-1. As the admin user, install what is missing: `sudo apt install tmux git util-linux cron python3 nodejs npm`. Install `gitleaks` with the method you trust (package manager or the release page of the project).
-2. Check each tool as `<work-user>`: `command -v tmux git flock crontab python3 node gitleaks`. Every name must print a path.
+1. As the admin user, install what is missing: `sudo apt install tmux git util-linux cron python3`. Node comes from the official Claude Code installation guide (step 3), not from `apt` by default: the `apt` version of Node on Ubuntu may be older than Claude Code needs. Install `gitleaks` with the method you trust (package manager or the release page of the project).
+2. Check each tool as `<work-user>`: `command -v tmux git flock crontab python3 gitleaks`. Every name must print a path.
 3. Check the Python version: `python3 --version` must show 3.10 or newer.
 
 ## 3. Claude Code login: install and log in yourself
 
-1. Install Claude Code as `<work-user>` following the official installation guide.
+1. Install Claude Code as `<work-user>` following the official installation guide. If the guide needs Node, install the version the official guide requires and check it with `node --version` before you go on.
 2. Start `claude` once and log in. **You do this yourself**, in your own session; no script and no agent does it for you, and no login data is ever written into a file of this repository.
 3. For a test server or a second server, use a **separate Claude account**. Test runs then do not use up the quota of projects that are running.
 4. Leave Claude Code with `/exit` once the login works.
@@ -55,14 +55,29 @@ The templates call `sf-status` by its bare name, so it must be found on the `PAT
 1. Link the script into a folder that is on the `PATH`: `mkdir -p ~/.local/bin` and `ln -s <plugin-dir>/scripts/bin/sf-status ~/.local/bin/sf-status`.
 2. Make sure `~/.local/bin` is on the `PATH` (add it to `~/.profile` if not).
 3. Test it: `sf-status --help` prints the list of commands.
-4. The cron template sets its own `PATH` line. If `sf-status` lives somewhere else, add that folder to the `PATH` line in step 8.
+4. Find the folders of both programs: `command -v claude sf-status`. Cron starts the tmux sessions with its own short `PATH`, and the strands and the supervisor call `claude` and `sf-status` by their bare names. Every folder printed here must be on the `PATH` line of the crontab (step 8). The cron line itself calls `sf-status` by its full path, so it is not affected.
 
 ## 6. Secret scan and pre-push hook
 
 `sf-status project add` refuses a repository without a working secret scan.
 
-1. Every project repository needs an executable `pre-push` hook that runs `gitleaks` (in the hooks folder set by `core.hooksPath`, or in `.git/hooks`). The hook in `<plugin-dir>/scripts/git-hooks/pre-push` is a model; it also contains a blocklist check that is only meant for the maintainers of the plugin, so copy just the `gitleaks` part into your own hook.
-2. Make it executable: `chmod +x <project-folder>/.git/hooks/pre-push`.
+1. Every project repository needs an executable `pre-push` hook that runs `gitleaks`, in the hooks folder of the repository (`.git/hooks`, or the folder set by `core.hooksPath`). Create the file `pre-push` there with this content:
+
+   ```bash
+   #!/usr/bin/env bash
+   # Scan the commits about to be pushed with gitleaks; a finding stops the push.
+   set -euo pipefail
+   null=0000000000000000000000000000000000000000
+   root=$(git rev-parse --show-toplevel)
+   while read -r _local_ref local_sha _remote_ref remote_sha; do
+     [ "$local_sha" = "$null" ] && continue
+     if [ "$remote_sha" != "$null" ]; then range="$remote_sha..$local_sha"; else range="$local_sha --not --remotes"; fi
+     gitleaks git --redact --no-banner --log-opts="$range" "$root"
+   done
+   ```
+
+   The hook of the plugin (`<plugin-dir>/scripts/git-hooks/pre-push`) has an extra blocklist check for the plugin maintainers; you do not need it.
+2. Make it executable: `chmod +x <hooks-folder>/pre-push`, where `<hooks-folder>` is the hooks folder you chose.
 3. Test it with a push to your remote: a clean push goes through, a file with a fake secret is stopped.
 
 ### Remotes without GitHub access
@@ -88,7 +103,7 @@ If the server may not reach your normal remote, give it a bare repository that y
 The cron job is what makes the server work on its own. It starts `sf-status run` every three minutes under `flock`, so two runs never overlap.
 
 1. Open the editor with `crontab -e`.
-2. Add the lines of `<plugin-dir>/templates/server/crontab.txt` with `<state-dir>` replaced by your state folder (default `~/.claude/software-factory/server`, spelled out as an absolute path) and `<plugin-dir>` by the plugin folder.
+2. Add the lines of `<plugin-dir>/templates/server/crontab.txt` with `<home>` replaced by the absolute home folder of `<work-user>` (cron does not expand `~` or `$HOME` there). Add every folder from step 5.4 that is not yet on the `PATH` line (for example the folder of `claude`, if it is not `<home>/.local/bin`). Replace `<state-dir>` replaced by your state folder (default `~/.claude/software-factory/server`, spelled out as an absolute path) and `<plugin-dir>` by the plugin folder.
 3. Save and check with `crontab -l`.
 4. After three minutes look at `<state-dir>/run.log`. A line "server mode disabled" means `server.enabled` is still not `true`.
 5. A cron run does not end with an error trace; a problem is one line in `run.log`.
@@ -121,7 +136,8 @@ Strands and the supervisor ask questions only when they are really unsure. Open 
 
 1. Read the question, its background and the recommendation.
 2. Answer with: `sf-status answer --project <name> --id <question-id> "<your answer>"`.
-3. The answer reaches the strand with the next supervisor run. An unknown or already answered id is refused with a message; nothing is recorded twice.
+3. With the supervisor on (`server.supervisor` is `true`), the answer reaches the strand with the next supervisor run. With the supervisor off (the default), nobody passes it on: deliver it yourself with `sf-status deliver --project <name> --strand <short> "<text>"`.
+4. An unknown or already answered id is refused with a message; nothing is recorded twice.
 
 ## Switching off
 
