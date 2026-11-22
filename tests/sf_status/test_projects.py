@@ -177,3 +177,11 @@ def test_non_utf8_projects_json_is_empty(env):
     (env / "projects.json").write_bytes(b"\xff\xfe\x00\x80binary")
     assert projects.load(env) == []
     assert "projects.json" in (env / "run.log").read_text()
+
+
+@pytest.mark.parametrize("name", ["rows", "seen"])
+def test_add_refuses_reserved_names(env, tmp_path, name, capsys):
+    repo = make_repo(tmp_path / "r")
+    assert cli.main(add_args(repo, name)) == 1
+    assert "reserved" in capsys.readouterr().err
+    assert projects.load(env) == []

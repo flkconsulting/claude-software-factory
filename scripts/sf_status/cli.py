@@ -261,7 +261,7 @@ def _one_line(text: str, limit: int = 300) -> str:
 
 def _add_run(sub) -> None:
     p = sub.add_parser("run", help="one cron run: status files, wake triggers, start the supervisor")
-    p.add_argument("--dry-run", action="store_true", help="write status files only; start and commit nothing")
+    p.add_argument("--dry-run", action="store_true", help="collect and render as usual (this still writes stall/notice events and markers), but adopt no wake triggers and start no supervisor")
 
 
 def _open_triggers(state_dir: Path) -> int:

@@ -141,3 +141,18 @@ def test_failed_notice_keeps_marker_unadvanced(cfg, state, proj, monkeypatch):
     with pytest.raises(OSError):
         wake.commit_triggers(state, t, T0)
     assert not (state / "markers" / "wake.json").exists()
+
+
+def test_answer_to_supervisor_question_triggers(cfg, state, proj):
+    events.append(state, "alpha", {"kind": "question", "strand": "supervisor", "id": "supervisor-1",
+                                   "question": "q", "background": "b", "recommendation": "r"}, T0)
+    events.append(state, "alpha", {"kind": "answer", "strand": "supervisor", "question_id": "supervisor-1",
+                                   "text": "yes"}, T0)
+    report(state, "alpha", "supervisor", "done")
+    got = run(cfg, [proj], state, T0)
+    assert "answer:supervisor-1" in got and "done:supervisor" not in got
+
+
+def test_reserved_names_match_state_keys():
+    from sf_status import projects
+    assert set(projects.RESERVED_NAMES) == {k for k in wake.STATE_KEYS if projects.NAME_RE.match(k)}

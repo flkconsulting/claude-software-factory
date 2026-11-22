@@ -9,6 +9,8 @@ from pathlib import Path
 from . import effects, events
 
 NAME_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
+# state keys of markers/wake.json that a valid project name could equal (see wake.STATE_KEYS)
+RESERVED_NAMES = ("rows", "seen")
 SYSTEM_STRAND = "server"  # strand id used for registry events
 
 
@@ -99,6 +101,8 @@ def has_gitleaks_pre_push(folder: Path) -> bool:
 def check(project: Project, existing: list[Project]) -> None:
     if not NAME_RE.match(project.name):
         raise ProjectError("name: only a-z, 0-9 and single hyphens (not at the start or end)")
+    if project.name in RESERVED_NAMES:
+        raise ProjectError(f"name {project.name!r} is reserved (it would collide with a state key of the wake marker)")
     if any(p.name == project.name for p in existing):
         raise ProjectError(f"project {project.name!r} is already registered")
     if not project.title.strip():

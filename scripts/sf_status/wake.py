@@ -88,7 +88,7 @@ def collect_triggers(cfg: ServerConfig, projects: list[Project], state_dir: Path
             continue
         for e in evs:
             strand, kind = e.get("strand"), e.get("kind")
-            if strand == "supervisor":
+            if strand == "supervisor" and kind != "answer":  # answers to its questions are written by the human
                 continue
             if kind == "report" and e.get("state") in DEBOUNCED_STATES and events.valid_id(strand):
                 add(f"{e['state']}:{strand}", True)
