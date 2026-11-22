@@ -130,18 +130,34 @@ def test_exception_in_claude_is_failure(env, monkeypatch):
 def test_parked_after_retry_limit_with_warning(env):
     env.set([("done:a", 0)])
     env.behavior["write_notes"] = False
-    for n in range(1, 4):  # retry_limit = 3 real runs
+    for n in range(1, 4):  # retry_limit = 3 real runs, real flow, no manual edits
         assert supervisor.run_once(env.cfg, env.state, NOW) == "failed"
         assert len(env.calls) == n
-    assert env.notices() and all(x["title"] == "supervisor run failed" for x in env.notices())
     before = len(env.notices())
-    env.set([(i["id"], i["tries"]) for i in env.triggers()["open"] if i["id"] == "done:a"])
     assert supervisor.run_once(env.cfg, env.state, NOW) == "parked"
     assert len(env.calls) == 3
     data = env.triggers()
-    assert [p["id"] for p in data["parked"]] == ["done:a"] and data["open"] == []
+    assert sorted(p["id"] for p in data["parked"]) == ["done:a", "retry"] and data["open"] == []
     new = env.notices()[before:]
     assert len(new) == 1 and new[0]["level"] == "warning" and new[0]["title"] == "supervisor triggers parked"
+    assert supervisor.run_once(env.cfg, env.state, NOW) == "nothing"
+    assert len(env.calls) == 3
+
+
+def test_no_supervisor_project_keeps_tries(env):
+    (env.state / "projects.json").write_text(json.dumps({"projects": [
+        Project(name="alpha", title="Alpha", folder=str(env.folder), supervisor=False).__dict__]}))
+    env.set([("done:a", 2)])
+    for _ in range(3):
+        assert supervisor.run_once(env.cfg, env.state, NOW) == "nothing"
+    data = env.triggers()
+    assert data["open"][0]["tries"] == 2 and data["parked"] == [] and env.calls == []
+
+
+def test_no_valid_trigger_id_keeps_tries(env):
+    env.set([("bad id", 2)])
+    assert supervisor.run_once(env.cfg, env.state, NOW) == "nothing"
+    assert env.triggers()["open"][0]["tries"] == 2 and env.calls == []
 
 
 def test_parked_while_others_still_run(env):

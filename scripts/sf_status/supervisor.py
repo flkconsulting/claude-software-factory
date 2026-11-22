@@ -121,21 +121,22 @@ def _locked(cfg: ServerConfig, state_dir: Path, base: Path, now: datetime) -> st
     if not data["open"]:
         return "nothing"
     project = _supervisor_project(state_dir)
+    if project is None or not any(TRIGGER_RE.match(i["id"]) for i in data["open"]):
+        return "nothing"  # no real run possible: tries stay untouched, nothing is parked silently
     aborted = any(i["tries"] > 0 for i in data["open"])  # an earlier run never proved success
     gone = [i for i in data["open"] if i["tries"] >= cfg.retry_limit]  # retry_limit real runs are used up
     data["open"] = [i for i in data["open"] if i["tries"] < cfg.retry_limit]
-    for i in data["open"]:
+    run_items = [i for i in data["open"] if TRIGGER_RE.match(i["id"])]
+    for i in run_items:
         i["tries"] += 1
     data["parked"] = data["parked"] + gone
     _atomic(path, data)
     if gone:
-        _notice(state_dir, project.name if project else None, "supervisor triggers parked",
+        _notice(state_dir, project.name, "supervisor triggers parked",
                 f"{len(gone)} trigger(s) parked after {cfg.retry_limit} tries; see supervisor/triggers.json.", now)
-    run_ids = [i["id"] for i in data["open"] if TRIGGER_RE.match(i["id"])]
-    if not data["open"]:
-        return "parked"
-    if project is None or not run_ids:
-        return "nothing"
+    run_ids = [i["id"] for i in run_items]
+    if not run_ids:
+        return "parked" if gone else "nothing"
 
     task_file, notes_file = base / "task.md", base / "notes.md"
     before = _mtime(notes_file)
@@ -155,7 +156,9 @@ def _locked(cfg: ServerConfig, state_dir: Path, base: Path, now: datetime) -> st
     if ok:
         fresh["open"] = [i for i in fresh["open"] if i["id"] not in run_ids]
     elif not any(i["id"] == RETRY for i in fresh["open"]):
-        fresh["open"].append({"id": RETRY, "since": _stamp(end), "tries": 0})
+        # retry inherits the tries of the failed bundle, so it is parked together with it
+        used = max(i["tries"] for i in run_items)
+        fresh["open"].append({"id": RETRY, "since": _stamp(end), "tries": used})
     fresh["last_run"] = _stamp(now)
     _atomic(path, fresh)
     if not ok:
