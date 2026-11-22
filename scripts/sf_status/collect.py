@@ -40,6 +40,7 @@ class State:
     runs: list[dict] = field(default_factory=list)
     usage: dict | None = None
     recent: list[dict] = field(default_factory=list)
+    triggers: dict | None = None  # supervisor/triggers.json content, filled by render.write
 
 
 def _load_json(path: Path) -> dict:
