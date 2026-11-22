@@ -171,3 +171,9 @@ def test_load_marker_ignores_bad_values(state):
     (state / "markers" / "wake.json").write_text(
         json.dumps({"a": 5, "b": -1, "c": True, "d": "7", "e": 1.5, "f": 0}))
     assert events.load_marker(state, "wake") == {"a": 5, "f": 0}
+
+
+def test_non_utf8_projects_json_is_empty(env):
+    (env / "projects.json").write_bytes(b"\xff\xfe\x00\x80binary")
+    assert projects.load(env) == []
+    assert "projects.json" in (env / "run.log").read_text()

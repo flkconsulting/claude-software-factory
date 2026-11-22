@@ -58,7 +58,7 @@ def load(state_dir: Path) -> list[Project]:
         raw = _file(state_dir).read_text(encoding="utf-8")
     except FileNotFoundError:
         return []
-    except OSError as e:
+    except (OSError, ValueError) as e:  # ValueError covers UnicodeDecodeError
         _log(state_dir, f"projects.json unreadable: {e}")
         return []
     try:
