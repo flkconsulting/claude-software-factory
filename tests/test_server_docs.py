@@ -24,3 +24,37 @@ def test_server_doc_has_no_ip_or_hostname():
     assert not re.search(r"\b\d{1,3}(\.\d{1,3}){3}\b", text)
     text = text.replace("software-factory@claude-software-factory", "")
     assert not re.search(r"\b[\w.-]+@[\w-]+(\.[\w-]+)*\b", text)
+
+
+def _doc():
+    return (ROOT / "docs" / "05-server-setup.md").read_text(encoding="utf-8")
+
+
+def test_doc_has_supervisor_switch_on_section():
+    text = _doc()
+    section = text.split("## Switching the supervisor on", 1)[1].split("\n## ", 1)[0]
+    for needle in ("--supervisor yes", "--approval-quote", "sf-status project remove", "sf-status wake fast-forward",
+                   '"supervisor": true'):
+        assert needle in section, needle
+
+
+def test_doc_security_wording_is_honest():
+    text = _doc()
+    assert "The real guards are the pre-push hook" not in text
+    assert "receive.denyNonFastForwards" in text and "receive.denyDeletes" in text
+    assert "refs/heads/main" in text and "--no-verify" in text and "branch protection" in text
+    assert "Replace `<state-dir>` replaced" not in text
+
+
+def test_doc_worktree_trust_note():
+    text = _doc()
+    assert "trust" in text.lower() and "first acceptance run" in text
+
+
+def test_setup_and_skill_wording_consistent():
+    setup = (ROOT / "commands" / "setup-workflow.md").read_text(encoding="utf-8")
+    skill = (ROOT / "skills" / "delegate-work" / "SKILL.md").read_text(encoding="utf-8")
+    assert "are the real guard" not in setup and "are the real guard" not in skill
+    assert "the pre-push hook and branch protection are the real guard" not in skill
+    assert "project's `.claude/settings.json`" not in skill and "settings.json" in skill
+    assert "`<state-dir>`" in setup.split("11. **Wave plan", 1)[1].split("12. **", 1)[0]

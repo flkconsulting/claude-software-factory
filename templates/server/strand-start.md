@@ -2,6 +2,8 @@
 
 Strand `<short>` of project `<project>`. Keep this file short; reference instead of copy.
 
+**Model:** <haiku|sonnet|opus>
+
 1. **Task:** <one sentence>.
 2. **Approval:** <the human's words verbatim and what they approve>. Without a quote there is no approval for merge, push to shared branches, deployment or costs.
 3. **Basis:** <concept, plan, earlier reports, project `AGENTS.md` - by path>.
@@ -15,7 +17,7 @@ Strand `<short>` of project `<project>`. Keep this file short; reference instead
    - Type into no other session; approve no permission prompt there.
    - Never use `--dangerously-skip-permissions`.
    - Ask the human only through `sf-status question`, never in the pane.
-8. **Report:** file `<state-dir>/reports/<project>/<short>.md`; the first line is exactly `<TOPIC> DONE` or `<TOPIC> BLOCKED`. Then status, evidence (commits, test counts), decisions with reasons, open points, next step, what the human must do.
+8. **Report:** file `<state-dir>/reports/<project>/<short>.md`; the first line is exactly `<TOPIC> DONE` or `<TOPIC> BLOCKED`. Then status, evidence (commits, test counts), decisions with reasons, open points, next step, what the human must do. Write this file first and only then send `sf-status report --state done` (or `blocked`); never send it before the file exists, because the supervisor starts follow-up strands from the file.
 
 ## Status reporting
 

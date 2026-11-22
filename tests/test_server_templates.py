@@ -86,6 +86,8 @@ def test_settings_json_parses_and_denies_force_push():
         "git push --force-with-lease origin", "git push -f origin x", "git push origin x --force",
         "git push origin release/1.0", "git push origin HEAD:release/1.0",
         "git reset --hard HEAD~1", "git clean -fd", "rm -rf x", "rm -fr x", "rm -r -f x",
+        "git push --no-verify origin feature/x", "git push origin feature/x --no-verify",
+        "git commit -m x --no-verify", "git commit --no-verify -m x",
     ]
     for command in blocked:
         assert _denied(command, deny), command
@@ -144,3 +146,25 @@ def test_delegate_work_server_mode():
     for needle in ("sf-status launch", "heavy-run.sh", "reports/", "templates/server/"):
         assert needle in text, needle
     assert len(text.encode("utf-8")) <= 12288
+
+
+def test_strand_start_has_model_and_report_order():
+    text = read("strand-start.md")
+    assert "**Model:** <haiku|sonnet|opus>" in text
+    step = text.split("8. **Report:**", 1)[1].split("## Status reporting", 1)[0]
+    assert "before" in step and "report --state done" in step
+    assert step.index("file") < step.index("report --state done")
+
+
+def test_supervisor_task_model_worktree_and_answers():
+    text = read("supervisor-task.md")
+    assert "**Model:**" in text and "start file" in text
+    assert "git worktree add -b" in text and "<project-folder>-<short>" in text
+    assert "never the project folder" in text
+    assert "<state-dir>" in text
+    assert "answer:<question-id>" in text and len(text.encode("utf-8")) <= 6144
+
+
+def test_deny_list_covers_no_verify():
+    deny = json.loads(read("settings.json"))["permissions"]["deny"]
+    assert "Bash(git push *--no-verify*)" in deny and "Bash(git commit *--no-verify*)" in deny

@@ -86,16 +86,25 @@ If the server may not reach your normal remote, give it a bare repository that y
 
 1. On the server: `git init --bare <bare-dir>`.
 2. In the project folder: `git remote add <remote-name> <bare-dir>`.
-3. Strands push their feature branch there (the pre-push hook still runs). On your laptop you fetch it with `git fetch <ssh-target>:<bare-dir> <branch>` and review it as usual.
+3. Protect the bare remote itself, because it has no branch protection of its own. Run `git -C <bare-dir> config receive.denyNonFastForwards true` and `git -C <bare-dir> config receive.denyDeletes true`. Then create the file `<bare-dir>/hooks/update` with the content below and make it executable (`chmod +x`). It refuses every push to `main` and `release/*` from the server user; you merge on your laptop.
+
+   ```bash
+   #!/usr/bin/env bash
+   # update hook: refuse changes to protected branches
+   case "$1" in
+     refs/heads/main|refs/heads/release/*) echo "push to $1 is refused here" >&2; exit 1 ;;
+   esac
+   ```
+4. Strands push their feature branch there (the pre-push hook still runs). On your laptop you fetch it with `git fetch <ssh-target>:<bare-dir> <branch>` and review it as usual.
 
 ## 7. Run `/setup-workflow`, variant B
 
 1. Start `claude` in the project folder on the server and run `/setup-workflow`.
 2. Choose variant **B**. The command first does what variant A does (project facts, hooks, planning, project files), then adds the server part.
 3. The server part never installs anything. It only checks `tmux`, `crontab` and `flock` and tells you what is missing.
-4. It proposes the `server` section of `~/.claude/software-factory.json` as a diff. Set `enabled` to `true` there; `supervisor` stays `false` until you want the supervisor.
+4. It proposes the `server` section of `~/.claude/software-factory.json` as a diff. Set `enabled` to `true` there; `supervisor` stays `false` until you want the supervisor (see "Switching the supervisor on").
 5. It proposes `sf-status project add <name> --title <title> --folder <project-folder> ...` and runs it only after you agree.
-6. It copies the wave plan template to `planning/wave-plan.md` and the supervisor task to `<state-dir>/supervisor/task.md`.
+6. It copies the wave plan template to `planning/wave-plan.md` and the supervisor task to `<state-dir>/supervisor/task.md`, with `<state-dir>` filled in.
 7. It shows the cron line and the additions for `settings.json`, and writes them only after your explicit consent. Step 8 explains the cron line, the section "Security limits" the permission additions.
 
 ## 8. Cron
@@ -103,7 +112,7 @@ If the server may not reach your normal remote, give it a bare repository that y
 The cron job is what makes the server work on its own. It starts `sf-status run` every three minutes under `flock`, so two runs never overlap.
 
 1. Open the editor with `crontab -e`.
-2. Add the lines of `<plugin-dir>/templates/server/crontab.txt` with `<home>` replaced by the absolute home folder of `<work-user>` (cron does not expand `~` or `$HOME` there). Add every folder from step 5.4 that is not yet on the `PATH` line (for example the folder of `claude`, if it is not `<home>/.local/bin`). Replace `<state-dir>` replaced by your state folder (default `~/.claude/software-factory/server`, spelled out as an absolute path) and `<plugin-dir>` by the plugin folder.
+2. Add the lines of `<plugin-dir>/templates/server/crontab.txt` with `<home>` replaced by the absolute home folder of `<work-user>` (cron does not expand `~` or `$HOME` there). Add every folder from step 5.4 that is not yet on the `PATH` line (for example the folder of `claude`, if it is not `<home>/.local/bin`). Replace `<state-dir>` with your state folder (default `~/.claude/software-factory/server`, spelled out as an absolute path) and `<plugin-dir>` by the plugin folder.
 3. Save and check with `crontab -l`.
 4. After three minutes look at `<state-dir>/run.log`. A line "server mode disabled" means `server.enabled` is still not `true`.
 5. A cron run does not end with an error trace; a problem is one line in `run.log`.
@@ -116,9 +125,19 @@ The wave plan is the only source of approvals. The supervisor starts a strand on
 2. Add one row per strand: short name, title, approval, start condition, branch, migrations, folders that may change.
 3. Leave the approval cell at `no` until you decided. To approve, write your own words into the cell: `yes - "<your quote>"`. Without a quote there is no `yes`.
 4. Write a start file for the strand with the skill `delegate-work` (it uses `templates/server/strand-start.md`), or let the supervisor do it for an approved row.
-5. To start a strand by hand: `sf-status launch --project <name> --short <short> --model <model> --worktree <worktree-dir> --topic <topic>`.
+5. To start a strand by hand: create its worktree first (`git -C <project-folder> worktree add -b <branch> <project-folder>-<short>`), then `sf-status launch --project <name> --short <short> --model <model> --worktree <project-folder>-<short> --topic <topic>`. `launch` refuses the project folder itself, so strands never share the main checkout.
+   A new worktree is a new folder for Claude Code, so the interactive `claude` of a strand may stop at the folder-trust dialog, where nobody answers. This guide does not state a verified way to pre-trust folders: check it during the first acceptance run. Right after the first launch run `tmux attach -t <project>-<short>`; if the dialog shows, accept it by hand once and note what is needed for later worktrees.
 6. For a start at a fixed time with a precondition, use `<plugin-dir>/templates/server/watcher.sh` (see `delegate-work`, section "Watcher").
 7. Run full test suites and builds through `<plugin-dir>/scripts/heavy-run.sh <command>`. It lets at most `server.heavy_slots` heavy runs go at once.
+
+## Switching the supervisor on
+
+Two things must both be on before the supervisor runs: the setting `server.supervisor` and the registration of the project.
+
+1. In `~/.claude/software-factory.json` set `"supervisor": true` in the section `server` (next to `"enabled": true`).
+2. There is no `project update`. Remove the project and add it again with the supervisor on and your approval quoted verbatim: `sf-status project remove <name>`, then `sf-status project add <name> --title <title> --folder <project-folder> --supervisor yes --approval-quote "<your quote>"`. The event file of the project stays and the wake offsets continue.
+3. While `server.supervisor` was off, triggers kept piling up in `<state-dir>/supervisor/triggers.json`, and approved rows of the wave plan count as new. If old approved rows or old events must not fire, run `sf-status wake fast-forward` before the next cron run: it sets the wake markers to now without raising triggers.
+4. Check after the next cron run: `<state-dir>/run.log` shows "supervisor started" and `<state-dir>/supervisor/runs/` gets a file. The file `<state-dir>/supervisor/task.md` must exist (step 7.6) with `<state-dir>` filled in.
 
 ## Viewing the state
 
@@ -151,7 +170,8 @@ You can stop the server layer at any time; variant A and the hooks keep working.
 ## Security limits
 
 - **Permissions.** Strands and the supervisor run with `claude --permission-mode auto`, with the model named explicitly. Never `--dangerously-skip-permissions`. Permission prompts of other sessions are not approved by any session.
-- **Deny list.** `<plugin-dir>/templates/server/settings.json` is a deny list for the work user (push to `main` or `release/*`, force push, `git reset --hard`, `git clean`, forced `rm`). Add its entries to the `settings.json` of the work user. It is a **best-effort** list: patterns can be bypassed by other wording. The real guards are the pre-push hook (step 6) and branch protection on your remote.
+- **Deny list.** `<plugin-dir>/templates/server/settings.json` is a deny list for the work user (push to `main` or `release/*`, force push, `--no-verify` on push and commit, `git reset --hard`, `git clean`, forced `rm`). Add its entries to the `settings.json` of the work user. It is a **best-effort** list: patterns can be bypassed by other wording.
+- **What each guard does.** The pre-push hook (step 6) only scans for secrets; it does not stop a push to `main`, and `git push --no-verify` skips it (which is why that flag is on the deny list). What actually stops a push to a protected branch is the protection of the remote: branch protection on GitHub, or the `update` hook of the bare remote (section "Remotes without GitHub access"). Without one of them nothing prevents it.
 - **Approval.** Only your quote in the wave plan approves a strand. The supervisor never invents an approval.
 - **Secrets.** Never put secrets into start files, notices, reports or the wave plan. Use the environment or the key store of the work user. Wake triggers and supervisor prompts contain only fixed words and ids, never free text from events.
 - **No root.** The work user has no `sudo`. Packages are installed by you, as admin, outside the session.
