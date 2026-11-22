@@ -129,7 +129,8 @@ def commit_triggers(state_dir: Path, triggers: Triggers, now: datetime | None = 
     data = _load(path)
     open_items = [i for i in data.get("open", []) if isinstance(i, dict) and "id" in i]
     known = {i["id"] for i in open_items}
-    since = _stamp(now or datetime.now(timezone.utc))
+    when = now or datetime.now(timezone.utc)
+    since = _stamp(when)
     for trigger in triggers:
         if trigger not in known:
             open_items.append({"id": trigger, "since": since, "tries": 0})
@@ -138,11 +139,11 @@ def commit_triggers(state_dir: Path, triggers: Triggers, now: datetime | None = 
     data.setdefault("parked", [])
     data.setdefault("last_run", None)
     _atomic(path, data)
-    _atomic(state_dir / "markers" / f"{READER}.json", triggers.pending)
     for project, short in triggers.notices:
         events.append(state_dir, project, {
             "kind": "notice", "strand": "server", "level": "warning", "title": "wave plan row skipped",
-            "text": f"Approved row with short {short!r} has no valid id (a-z, 0-9, hyphens) and starts nothing."}, now)
+            "text": f"Approved row with short {short!r} has no valid id (a-z, 0-9, hyphens) and starts nothing."}, when)
+    _atomic(state_dir / "markers" / f"{READER}.json", triggers.pending)
 
 
 def fast_forward(cfg: ServerConfig, projects: list[Project], state_dir: Path, now: datetime) -> None:

@@ -128,3 +128,16 @@ def test_invalid_short_not_stored_and_noticed_once(cfg, state, proj):
     evs = [e for e in events.read(state, "alpha")[0] if e["kind"] == "notice"]
     assert len(evs) == 1 and evs[0]["level"] == "warning" and evs[0]["strand"] == "server"
     assert evs[0]["title"] == "wave plan row skipped" and ";" not in evs[0]["text"]
+
+
+def test_failed_notice_keeps_marker_unadvanced(cfg, state, proj, monkeypatch):
+    plan(proj, "| W 1 | api | yes | now | b | - | - |")
+    t = wake.collect_triggers(cfg, [proj], state, T0)
+
+    def boom(*a, **k):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(events, "append", boom)
+    with pytest.raises(OSError):
+        wake.commit_triggers(state, t, T0)
+    assert not (state / "markers" / "wake.json").exists()
