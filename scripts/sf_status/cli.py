@@ -9,7 +9,7 @@ from dataclasses import fields
 from pathlib import Path
 from typing import Callable
 
-from . import collect, effects, events, projects, render, wake
+from . import collect, effects, events, projects, render, supervisor, wake
 from .config import DEFAULT_STATE_DIR, ServerConfig, load_server_config
 
 
@@ -309,6 +309,36 @@ def _run_run(args) -> int:
     return 0
 
 
+def _add_supervise(sub) -> None:
+    sub.add_parser("supervise", help="one supervisor short run for the open triggers (started by run)")
+
+
+def _run_supervise(args) -> int:
+    state_dir = None
+    try:
+        cfg = load_server_config()
+        state_dir = Path(cfg.state_dir)
+        if not (cfg.enabled and cfg.supervisor):
+            _log(state_dir, "supervise: server or supervisor mode disabled")
+            return 0
+        result = supervisor.run_once(cfg, state_dir, effects.now())
+        _log(state_dir, f"supervise: {result}")
+        return 1 if result in ("failed", "timeout") else 0
+    except Exception as e:
+        if state_dir is not None:
+            _log(state_dir, f"supervise failed: {type(e).__name__}: {_one_line(str(e))}")
+            try:
+                items = projects.load(state_dir)
+                target = next((p.name for p in items if p.supervisor), None)
+                if target:
+                    events.append(state_dir, target, {"kind": "notice", "strand": "supervisor", "level": "warning",
+                                                      "title": "supervisor run failed",
+                                                      "text": "The supervisor run stopped on an unexpected error; see run.log."})
+            except Exception:
+                pass
+        return 1
+
+
 def _add_wake(sub) -> None:
     p = sub.add_parser("wake", help="wake markers")
     ws = p.add_subparsers(dest="wake_command", required=True)
@@ -338,6 +368,7 @@ COMMANDS: dict[str, tuple[Callable, Callable[[argparse.Namespace], int]]] = {
     "project": (_add_project, _run_project),
     "run": (_add_run, _run_run),
     "wake": (_add_wake, _run_wake),
+    "supervise": (_add_supervise, _run_supervise),
 }
 
 

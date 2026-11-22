@@ -1,4 +1,7 @@
 """All side effects of the server (tmux, git, claude, clock). Tests replace these functions."""
+import json
+import os
+import signal
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
@@ -53,9 +56,43 @@ def tmux_send(session: str, text: str) -> bool:
     return bool(r and r.returncode == 0)
 
 
+def _end_group(proc) -> None:
+    for sig in (signal.SIGTERM, signal.SIGKILL):
+        try:
+            os.killpg(proc.pid, sig)
+        except OSError:
+            pass
+        try:
+            proc.wait(timeout=10)
+            return
+        except subprocess.SubprocessError:
+            continue
+
+
 def run_claude(prompt: str, cwd: str, model: str, timeout_s: int, env: dict) -> tuple[int, dict | None]:
-    """Run one headless claude call; returns (exit code, parsed JSON result or None). Task 8."""
-    raise NotImplementedError("run_claude is implemented in Task 8")
+    """Run one headless claude call, prompt on stdin; returns (exit code, parsed JSON result or None).
+
+    Timeout: the process group gets SIGTERM, then SIGKILL, and the code is 124. Not startable: 127.
+    """
+    argv = ["claude", "-p", "--model", model, "--output-format", "json", "--permission-mode", "auto"]
+    try:
+        proc = subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                                text=True, cwd=cwd, env=env, start_new_session=True)
+    except OSError:
+        return 127, None
+    try:
+        out, _ = proc.communicate(input=prompt, timeout=timeout_s)
+    except subprocess.TimeoutExpired:
+        _end_group(proc)
+        return 124, None
+    except (OSError, ValueError):
+        _end_group(proc)
+        return 1, None
+    try:
+        data = json.loads(out)
+    except (TypeError, ValueError):
+        data = None
+    return proc.returncode, data if isinstance(data, dict) else None
 
 
 def spawn_detached(argv: list[str], cwd: str, env: dict) -> bool:
