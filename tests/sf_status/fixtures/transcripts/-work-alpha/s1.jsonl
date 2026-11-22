@@ -1,0 +1,7 @@
+{"cwd": "/work/alpha", "message": {"id": "m1", "model": "claude-opus-5-5", "usage": {"cache_creation_input_tokens": 200, "cache_read_input_tokens": 1000, "input_tokens": 100, "output_tokens": 50}}, "requestId": "r-m1", "timestamp": "2026-11-22T10:00:00Z"}
+{"cwd": "/work/alpha", "message": {"id": "m1", "model": "claude-opus-5-5", "usage": {"cache_creation_input_tokens": 200, "cache_read_input_tokens": 1000, "input_tokens": 100, "output_tokens": 50}}, "requestId": "r-m1", "timestamp": "2026-11-22T10:00:01Z"}
+{"cwd": "/work/alpha", "message": {"id": "m2", "model": "claude-sonnet-5-5", "usage": {"cache_creation_input_tokens": 0, "cache_read_input_tokens": 3000, "input_tokens": 10, "output_tokens": 20}}, "requestId": "r-m2", "timestamp": "2026-11-22T11:00:00Z"}
+{"cwd": "/work/alpha", "message": {"id": "m3", "model": "<synthetic>", "usage": {"cache_creation_input_tokens": 0, "cache_read_input_tokens": 0, "input_tokens": 0, "output_tokens": 0}}, "requestId": "r-m3", "timestamp": "2026-11-22T11:30:00Z"}
+{"cwd": "/elsewhere", "message": {"id": "m4", "model": "claude-future-9", "usage": {"cache_creation_input_tokens": 0, "cache_read_input_tokens": 0, "input_tokens": 5, "output_tokens": 5}}, "requestId": "r-m4", "timestamp": "2026-11-22T12:00:00Z"}
+{"cwd": "/work/alpha", "message": {"id": "m5", "model": "claude-opus-5-5", "usage": {"cache_creation_input_tokens": 999, "cache_read_input_tokens": 999, "input_tokens": 999, "output_tokens": 999}}, "requestId": "r-m5", "timestamp": "2026-11-21T23:59:59Z"}
+{"message": {"usage": {"input_tok

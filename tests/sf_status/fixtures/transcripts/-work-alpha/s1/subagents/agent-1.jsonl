@@ -1,0 +1,2 @@
+{"cwd": "/work/alpha", "message": {"id": "h1", "model": "claude-haiku-5-5", "usage": {"cache_creation_input_tokens": 0, "cache_read_input_tokens": 500, "input_tokens": 200, "output_tokens": 100}}, "requestId": "r-h1", "timestamp": "2026-11-22T10:30:00Z"}
+{"cwd": "/work/alpha", "message": {"id": "h2", "model": "claude-sonnet-5-5", "usage": {"cache_creation_input_tokens": 0, "cache_read_input_tokens": 0, "input_tokens": 50, "output_tokens": 50}}, "requestId": "r-h2", "timestamp": "2026-11-22T10:31:00Z"}

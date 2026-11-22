@@ -141,3 +141,9 @@ def test_markdown_html_defused():
     assert "<img" not in md and "<script" not in md and "<a " not in md
     assert "&lt;script&gt;" in md and "&amp;" in md
     assert "\\[a\\](" in md and "[a](" not in md and "\\`c\\`" in md
+
+
+def test_usage_by_model_row_shows_numbers_and_unknown_usd():
+    u = {"day": "d", "by_model": {"m1": {"responses": 2, "usd": 1.5}, "m2": {"responses": 1, "usd": None}}}
+    md = render.render_markdown(make_state(usage=u), NOW)
+    assert "responses 2" in md and "usd 1.5" in md and "usd unknown" in md

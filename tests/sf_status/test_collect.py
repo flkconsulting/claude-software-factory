@@ -167,3 +167,35 @@ def test_state_views(cfg, state, projects, fake):
     assert [q["id"] for q in s.questions] == ["a-1"]
     assert [t["id"] for t in s.tasks] == ["t1"]
     assert len(s.runs) == 1 and s.usage is None and s.recent
+
+
+def test_supervisor_strand_excluded_from_gone_and_stall(cfg, state, projects, fake):
+    report(state, "supervisor")
+    collect.collect(cfg, projects, NOW)
+    assert of_kind(state, "notice") == []
+    fake.sessions = [("alpha-supervisor", projects[0].folder + "-supervisor")]
+    fake.panes = {"alpha-supervisor": "same\n"}
+    collect.collect(cfg, projects, NOW)
+    collect.collect(cfg, projects, NOW + 3 * LIMIT)
+    assert of_kind(state, "stall") == [] and of_kind(state, "notice") == []
+
+
+def test_stall_marker_reset_after_leaving_checked_states(cfg, state, projects, fake):
+    running(cfg, state, projects, fake, pane="same\n")
+    collect.collect(cfg, projects, NOW)
+    report(state, "a", st="waiting", waiting_for="human")
+    collect.collect(cfg, projects, NOW + 3 * LIMIT)
+    report(state, "a", st="running")
+    s = collect.collect(cfg, projects, NOW + 3 * LIMIT + 60)
+    assert of_kind(state, "stall") == []
+    assert s.strands["alpha/a"].stalled is False
+
+
+def test_stall_marker_reset_when_session_disappears(cfg, state, projects, fake):
+    running(cfg, state, projects, fake, pane="same\n")
+    collect.collect(cfg, projects, NOW)
+    fake.sessions = []
+    collect.collect(cfg, projects, NOW + 3 * LIMIT)
+    fake.sessions = [("alpha-a", projects[0].folder + "-a")]
+    collect.collect(cfg, projects, NOW + 3 * LIMIT + 60)
+    assert of_kind(state, "stall") == []

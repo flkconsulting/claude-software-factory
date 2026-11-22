@@ -142,7 +142,11 @@ def _usage(usage: dict) -> list:
         if isinstance(data, dict):
             for k in sorted(data, key=str):
                 v = data[k]
-                rows.append([_cell(k), _cell(_get({"v": v}, "v") if not isinstance(v, (dict, list)) else UNKNOWN)])
+                if isinstance(v, dict):
+                    v = ", ".join(f"{n} {_get(v, n)}" for n in sorted(v, key=str))
+                elif isinstance(v, list):
+                    v = None
+                rows.append([_cell(k), _cell(_get({"v": v}, "v"))])
         b.append(("h3", title))
         b.append(("table", ["name", "value"], rows) if rows else ("p", UNKNOWN))
 

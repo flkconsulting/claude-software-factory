@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import effects, events, stall
+from . import effects, events, stall, usage as usage_mod
 from .config import ServerConfig
 from .projects import SYSTEM_STRAND, Project, project_for_path
 
@@ -18,6 +18,8 @@ MAX_NOTICES = 50
 MAX_RECENT = 20
 MAX_RUNS = 5
 HUMAN_WAIT = ("human", "heavy-run")
+SUPERVISOR_STRAND = "supervisor"  # runs without a tmux session
+PRICES_FILE = Path(__file__).with_name("prices.json")
 
 
 @dataclass
@@ -135,7 +137,17 @@ def _runs(state_dir: Path) -> list[dict]:
     return out[:MAX_RUNS]
 
 
-def collect(cfg: ServerConfig, projects: list[Project], now: float) -> State:
+def _reset_stall(entry: dict) -> bool:
+    """Forget the pane hash and stall start, so a resumed strand is measured anew."""
+    changed = any(k in entry for k in ("hash", "since")) or bool(entry.get("reported"))
+    entry.pop("hash", None)
+    entry.pop("since", None)
+    entry["reported"] = False
+    return changed
+
+
+def collect(cfg: ServerConfig, projects: list[Project], now: float,
+            transcripts_root: Path | None = None) -> State:
     state_dir = Path(cfg.state_dir)
     when = datetime.fromtimestamp(now, timezone.utc)
     limit_s = cfg.stall_minutes * 60
@@ -175,12 +187,15 @@ def collect(cfg: ServerConfig, projects: list[Project], now: float) -> State:
                 entry["hinted"] = True
                 wrote = True
             continue
+        if strand == SUPERVISOR_STRAND:
+            continue
         rep = last[project][strand]
         entry["gone"] = False
-        if rep.get("state") not in ("running", "waiting"):
-            continue
-        if rep.get("state") == "waiting" and any(w in str(rep.get("waiting_for", "")).lower()
-                                                 for w in HUMAN_WAIT):
+        if rep.get("state") not in ("running", "waiting") or (
+                rep.get("state") == "waiting"
+                and any(w in str(rep.get("waiting_for", "")).lower() for w in HUMAN_WAIT)):
+            if _reset_stall(entry):
+                wrote = True
             continue
         pane = effects.capture_pane(name)
         if pane is None:
@@ -195,9 +210,14 @@ def collect(cfg: ServerConfig, projects: list[Project], now: float) -> State:
         wrote = True
 
     # expected sessions that are gone (running/waiting, no report file, no tmux session)
+    for name, entry in marker.items():
+        if name not in sessions and _reset_stall(entry):
+            wrote = True
     for project, reps in last.items():
         for strand, rep in sorted(reps.items()):
             name = f"{project}-{strand}"
+            if strand == SUPERVISOR_STRAND:
+                continue
             if (rep.get("state") not in ("running", "waiting") or name in sessions
                     or f"{project}/{strand}" in report_files):
                 continue
@@ -240,4 +260,10 @@ def collect(cfg: ServerConfig, projects: list[Project], now: float) -> State:
     result.notices = [e for e in all_events if e.get("kind") == "notice" and str(e.get("time", "")) >= cutoff][-MAX_NOTICES:]
     result.recent = all_events[-MAX_RECENT:]
     result.runs = _runs(state_dir)
+    if cfg.usage_report:
+        try:
+            root = transcripts_root if transcripts_root is not None else usage_mod.DEFAULT_ROOT
+            result.usage = usage_mod.summarize(root, when.date(), usage_mod.load_prices(PRICES_FILE), projects)
+        except Exception:  # the report is optional; a changed transcript format must not stop the run
+            result.usage = None
     return result

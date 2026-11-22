@@ -15,4 +15,4 @@ def state(tmp_path) -> Path:
 
 @pytest.fixture
 def cfg(tmp_path) -> ServerConfig:
-    return ServerConfig(enabled=True, state_dir=tmp_path)
+    return ServerConfig(enabled=True, state_dir=tmp_path, usage_report=False)
