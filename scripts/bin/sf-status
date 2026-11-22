@@ -1,0 +1,4 @@
+#!/bin/sh
+# Entry point: resolves the repo root through symlinks, then runs the package.
+ROOT="$(dirname "$(dirname "$(dirname "$(readlink -f "$0")")")")"
+PYTHONPATH="$ROOT/scripts" exec python3 -m sf_status "$@"
