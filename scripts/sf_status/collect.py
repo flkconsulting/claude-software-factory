@@ -172,6 +172,9 @@ def collect(cfg: ServerConfig, projects: list[Project], now: float,
 
     per_project = {p.name: load_events(p.name) for p in projects}
     last = {p: _last_reports(evs) for p, evs in per_project.items()}
+    # launched strands count as known before their first report
+    started = {p: {e["strand"] for e in evs if e.get("kind") == "start" and isinstance(e.get("strand"), str)}
+               for p, evs in per_project.items()}
 
     # tmux sessions -> (project, strand); strand None means unknown
     sessions: dict[str, tuple[str, str | None]] = {}
@@ -180,7 +183,7 @@ def collect(cfg: ServerConfig, projects: list[Project], now: float,
         if project is None:
             continue
         strand = name.removeprefix(project + "-") if name.startswith(project + "-") else None
-        sessions[name] = (project, strand if strand in last[project] else None)
+        sessions[name] = (project, strand if strand in last[project] or strand in started[project] else None)
 
     marker_path = state_dir / "markers" / "stall.json"
     marker = {k: dict(v) for k, v in _load_json(marker_path).items() if isinstance(v, dict)}
@@ -199,7 +202,7 @@ def collect(cfg: ServerConfig, projects: list[Project], now: float,
             continue
         if strand == SUPERVISOR_STRAND:
             continue
-        rep = last[project][strand]
+        rep = last[project].get(strand) or {"state": "running"}  # started, no report yet: measured as running
         entry["gone"] = False
         if rep.get("state") not in ("running", "waiting") or (
                 rep.get("state") == "waiting"

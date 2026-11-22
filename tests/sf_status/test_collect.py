@@ -199,3 +199,19 @@ def test_stall_marker_reset_when_session_disappears(cfg, state, projects, fake):
     fake.sessions = [("alpha-a", projects[0].folder + "-a")]
     collect.collect(cfg, projects, NOW + 3 * LIMIT + 60)
     assert of_kind(state, "stall") == []
+
+
+def test_launched_strand_without_report_is_known(cfg, state, projects, fake):
+    events.append(state, "alpha", {"kind": "start", "strand": "zzz", "topic": "t", "text": "started"})
+    fake.sessions = [("alpha-zzz", projects[0].folder + "-zzz")]
+    fake.panes = {"alpha-zzz": "x\n"}
+    collect.collect(cfg, projects, NOW)
+    collect.collect(cfg, projects, NOW + 60)
+    assert of_kind(state, "notice") == []
+    assert of_kind(state, "stall") == []
+
+
+def test_launched_strand_without_report_is_not_reported_gone(cfg, state, projects, fake):
+    events.append(state, "alpha", {"kind": "start", "strand": "zzz", "topic": "t", "text": "started"})
+    collect.collect(cfg, projects, NOW)
+    assert of_kind(state, "notice") == []
