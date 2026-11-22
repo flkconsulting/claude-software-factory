@@ -1,13 +1,16 @@
 """Command line entry point; each subcommand registers itself in COMMANDS."""
 import argparse
+import json
 import os
+import re
 import sys
+from datetime import datetime, timezone
 from dataclasses import fields
 from pathlib import Path
 from typing import Callable
 
-from . import events, projects
-from .config import ServerConfig, load_server_config
+from . import collect, effects, events, projects, render, wake
+from .config import DEFAULT_STATE_DIR, ServerConfig, load_server_config
 
 
 def _add_config(sub) -> None:
@@ -230,6 +233,98 @@ def _run_project(args) -> int:
     return 0
 
 
+# ---- cron run -------------------------------------------------------------
+
+LOG_MAX = 1024 * 1024
+
+
+def _log(state_dir: Path, line: str) -> None:
+    """One line to run.log (rotated at 1 MB, one generation); never raises."""
+    try:
+        state_dir.mkdir(parents=True, exist_ok=True)
+        path = state_dir / "run.log"
+        try:
+            if path.stat().st_size >= LOG_MAX:
+                os.replace(path, state_dir / "run.log.1")
+        except FileNotFoundError:
+            pass
+        stamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(f"{stamp} {line}\n")
+    except Exception:
+        pass
+
+
+def _one_line(text: str, limit: int = 300) -> str:
+    return re.sub(r"[\x00-\x1f\x7f]+", " ", text).strip()[:limit]
+
+
+def _add_run(sub) -> None:
+    p = sub.add_parser("run", help="one cron run: status files, wake triggers, start the supervisor")
+    p.add_argument("--dry-run", action="store_true", help="write status files only; start and commit nothing")
+
+
+def _open_triggers(state_dir: Path) -> int:
+    try:
+        data = json.loads((state_dir / "supervisor" / "triggers.json").read_text(encoding="utf-8"))
+        return len([i for i in data.get("open", []) if isinstance(i, dict)])
+    except (OSError, ValueError, AttributeError):
+        return 0
+
+
+def _run_run(args) -> int:
+    state_dir = None
+    try:
+        cfg = load_server_config()
+        state_dir = Path(cfg.state_dir)
+        if not cfg.enabled:
+            _log(state_dir, "server mode disabled")
+            return 0
+        now = effects.now()
+        items = projects.load(state_dir)
+        state = collect.collect(cfg, items, now.timestamp())
+        render.write(state_dir, state, now)
+        triggers = wake.collect_triggers(cfg, items, state_dir, now)
+        if args.dry_run:
+            _log(state_dir, f"dry run: would raise {len(triggers)} triggers: {', '.join(triggers) or 'none'}")
+            return 0
+        wake.commit_triggers(state_dir, triggers, now)
+        open_count = _open_triggers(state_dir)
+        if not cfg.supervisor:
+            return 0
+        if (state_dir / "supervisor" / "pause").exists():
+            _log(state_dir, f"supervisor paused, {open_count} triggers open")
+        elif open_count:
+            argv = [sys.executable, "-m", "sf_status", "supervise"]
+            if effects.spawn_detached(argv, str(Path(__file__).resolve().parent.parent), dict(os.environ)):
+                _log(state_dir, f"supervisor started, {open_count} triggers open")
+            else:
+                _log(state_dir, f"supervisor not started, {open_count} triggers open")
+    except Exception as e:
+        if state_dir is None:  # config failed: only a sure absolute default can take the line
+            default = os.path.expanduser(DEFAULT_STATE_DIR)
+            state_dir = Path(default) if os.path.isabs(default) else None
+        if state_dir is not None:
+            _log(state_dir, f"run failed: {type(e).__name__}: {_one_line(str(e))}")
+    return 0
+
+
+def _add_wake(sub) -> None:
+    p = sub.add_parser("wake", help="wake markers")
+    ws = p.add_subparsers(dest="wake_command", required=True)
+    ws.add_parser("fast-forward", help="set all wake markers to now; afterwards only new things wake")
+
+
+def _run_wake(args) -> int:
+    cfg = load_server_config()
+    try:
+        wake.fast_forward(cfg, projects.load(cfg.state_dir), Path(cfg.state_dir), effects.now())
+    except OSError as e:
+        print(f"sf-status: {e}", file=sys.stderr)
+        return 1
+    return 0
+
+
 # name -> (function adding the subparser, function running it with parsed args)
 # Later tasks append their own entries here.
 COMMANDS: dict[str, tuple[Callable, Callable[[argparse.Namespace], int]]] = {
@@ -241,6 +336,8 @@ COMMANDS: dict[str, tuple[Callable, Callable[[argparse.Namespace], int]]] = {
     "task": (_add_task, _run_task),
     "notice": (_add_notice, _run_notice),
     "project": (_add_project, _run_project),
+    "run": (_add_run, _run_run),
+    "wake": (_add_wake, _run_wake),
 }
 
 

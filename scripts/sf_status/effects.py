@@ -56,3 +56,13 @@ def tmux_send(session: str, text: str) -> bool:
 def run_claude(prompt: str, cwd: str, model: str, timeout_s: int, env: dict) -> tuple[int, dict | None]:
     """Run one headless claude call; returns (exit code, parsed JSON result or None). Task 8."""
     raise NotImplementedError("run_claude is implemented in Task 8")
+
+
+def spawn_detached(argv: list[str], cwd: str, env: dict) -> bool:
+    """Start a process in its own session without waiting for it; False if it cannot be started."""
+    try:
+        subprocess.Popen(argv, cwd=cwd, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                         stderr=subprocess.DEVNULL, start_new_session=True)
+    except OSError:
+        return False
+    return True
