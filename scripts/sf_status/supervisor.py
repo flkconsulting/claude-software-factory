@@ -48,6 +48,14 @@ def _atomic(path: Path, data: dict) -> None:
     os.replace(tmp, path)
 
 
+def _log(state_dir: Path, line: str) -> None:
+    """One line to run.log; never raises (cli.py rotates the file)."""
+    with contextlib.suppress(OSError):
+        state_dir.mkdir(parents=True, exist_ok=True)
+        with open(state_dir / "run.log", "a", encoding="utf-8") as f:
+            f.write(f"{_stamp(datetime.now(timezone.utc))} {line}\n")
+
+
 def _mtime(path: Path) -> float:
     try:
         return path.stat().st_mtime
@@ -143,7 +151,8 @@ def _locked(cfg: ServerConfig, state_dir: Path, base: Path, now: datetime) -> st
     env = {**os.environ, "SF_SOURCE": "supervisor"}
     try:
         code, answer = effects.run_claude(build_prompt(run_ids, aborted, task_file, notes_file), project.folder,
-                                          cfg.supervisor_model, cfg.supervisor_timeout_minutes * 60, env)
+                                          cfg.supervisor_model, cfg.supervisor_timeout_minutes * 60, env,
+                                          log=lambda line: _log(state_dir, line))
     except Exception:  # unexpected: treat like a failure, never loop forever (tries are already counted)
         code, answer = 1, None
     answer = answer if isinstance(answer, dict) else {}

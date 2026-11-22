@@ -33,7 +33,7 @@ def env(tmp_path, monkeypatch):
     e.notes = state / "supervisor" / "notes.md"
     e.behavior = {"exit": 0, "result": {"is_error": False, "total_cost_usd": 0.5}, "write_notes": True}
 
-    def fake(prompt, cwd, model, timeout_s, env):
+    def fake(prompt, cwd, model, timeout_s, env, log=None):
         calls.append({"prompt": prompt, "cwd": cwd, "model": model, "timeout_s": timeout_s, "env": env})
         if e.behavior["write_notes"]:
             e.notes.parent.mkdir(parents=True, exist_ok=True)
@@ -269,3 +269,38 @@ def test_cli_supervise_exit_codes(env, monkeypatch):
     monkeypatch.setattr(supervisor, "run_once", lambda *a: (_ for _ in ()).throw(ValueError("x")))
     assert cli.main(["supervise"]) == 1
     assert "supervise failed" in (env.state / "run.log").read_text()
+
+
+def test_stderr_is_logged_as_one_short_line(monkeypatch):
+    seen = {}
+
+    class P:
+        pid = 1
+        returncode = 1
+
+        def communicate(self, input=None, timeout=None):
+            return "", "Not logged in\n\x1b[31mplease run login\x1b[0m\n" + "x" * 500
+
+    def popen(argv, **kw):
+        seen["kw"] = kw
+        return P()
+
+    monkeypatch.setattr(effects.subprocess, "Popen", popen)
+    lines = []
+    code, result = effects.run_claude("hello", "/tmp", "sonnet", 5, {}, log=lines.append)
+    assert code == 1 and result is None
+    assert seen["kw"]["stderr"] == effects.subprocess.PIPE
+    assert len(lines) == 1 and "\n" not in lines[0] and "\x1b" not in lines[0]
+    assert lines[0].startswith("claude stderr: Not logged in") and len(lines[0]) <= 330
+
+
+def test_supervisor_writes_stderr_line_to_run_log(env, monkeypatch):
+    env.set([("done:a", 0)])
+
+    def fake(prompt, cwd, model, timeout_s, env_, log=None):
+        log("claude stderr: Not logged in")
+        return 1, None
+
+    monkeypatch.setattr(effects, "run_claude", fake)
+    assert supervisor.run_once(env.cfg, env.state, NOW) == "failed"
+    assert "claude stderr: Not logged in" in (env.state / "run.log").read_text()

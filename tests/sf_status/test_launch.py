@@ -59,7 +59,7 @@ def test_launch_command_line(cfg, project, worktree, fake):
     assert launch.launch(cfg, project, "alpha", "sonnet", worktree, "topic") == 0
     name, cwd, command = fake.started[0]
     assert name == "demo-alpha" and cwd == str(worktree)
-    assert command == (f"CLAUDE_CODE_AUTO_COMPACT_WINDOW=200000 claude -n alpha --model sonnet "
+    assert command == (f"{launch.CLEAN_ENV}CLAUDE_CODE_AUTO_COMPACT_WINDOW=200000 claude -n alpha --model sonnet "
                        f"--permission-mode auto 'Read {sf} and carry out the task completely.'; exec bash")
     assert "dangerously" not in command
     evs, _ = events.read(Path(cfg.state_dir), "demo")
@@ -156,3 +156,50 @@ def test_deliver_without_session(cfg, project, fake, capsys):
     start_file(cfg)
     assert launch.deliver(cfg, project, "alpha", "x", wait_s=0) == 1
     assert fake.sent == []
+
+
+def test_launch_refuses_project_folder_itself(cfg, project, fake, capsys):
+    start_file(cfg)
+    assert launch.launch(cfg, project, "alpha", "sonnet", Path(project.folder), "t") == 1
+    assert fake.started == [] and "main checkout" in capsys.readouterr().err
+
+
+def test_launch_command_drops_supervisor_environment(cfg, project, worktree, fake):
+    import os
+    import subprocess
+    start_file(cfg)
+    assert launch.launch(cfg, project, "alpha", "sonnet", worktree, "t") == 0
+    command = fake.started[0][2]
+    for name in ("SF_SOURCE", "CLAUDECODE", "CLAUDE_PID", "CLAUDE_CODE_"):
+        assert name in command.split(" claude ")[0]
+    # run only the cleaning prefix in a real shell with a polluted environment
+    prefix = command.split("CLAUDE_CODE_AUTO_COMPACT_WINDOW", 1)[0]
+    env = {**os.environ, "SF_SOURCE": "supervisor", "CLAUDECODE": "1", "CLAUDE_CODE_SESSION_ID": "x",
+           "CLAUDE_CODE_FUTURE_THING": "y", "CLAUDE_PID": "1", "KEEP_ME": "z"}
+    out = subprocess.run(["sh", "-c", prefix + "env"], env=env, capture_output=True, text=True).stdout
+    assert "KEEP_ME=z" in out
+    for name in ("SF_SOURCE", "CLAUDECODE", "CLAUDE_CODE_", "CLAUDE_PID"):
+        assert name not in out
+
+
+def test_tmux_new_session_env_is_clean(monkeypatch):
+    seen = {}
+
+    def run(args, **kw):
+        seen["env"] = kw.get("env")
+
+        class R:
+            returncode = 0
+            stdout = ""
+        return R()
+
+    monkeypatch.setattr(effects.subprocess, "run", run)
+    monkeypatch.setenv("SF_SOURCE", "supervisor")
+    monkeypatch.setenv("CLAUDECODE", "1")
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "x")
+    monkeypatch.setenv("CLAUDE_PID", "1")
+    monkeypatch.setenv("KEEP_ME", "z")
+    assert effects.tmux_new_session("n", "/tmp", "cmd")
+    env = seen["env"]
+    assert env["KEEP_ME"] == "z"
+    assert not [k for k in env if k in ("SF_SOURCE", "CLAUDECODE", "CLAUDE_PID") or k.startswith("CLAUDE_CODE_")]

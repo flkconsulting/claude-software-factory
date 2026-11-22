@@ -1,4 +1,5 @@
 """Start a work strand in tmux and deliver follow-ups to it."""
+import os
 import shlex
 import sys
 import time
@@ -10,6 +11,9 @@ from .projects import Project, project_for_path
 
 MODELS = ("haiku", "sonnet", "opus")
 FOLLOWUP_HEADING = "## Follow-up "
+# A strand must not inherit the supervisor's or an outer Claude Code session's variables (fixed names only).
+CLEAN_ENV = ("unset SF_SOURCE CLAUDECODE CLAUDE_PID; "
+             "for v in $(env | sed -n 's/^\\(CLAUDE_CODE_[A-Za-z0-9_]*\\)=.*/\\1/p'); do unset \"$v\"; done; ")
 
 
 def _fail(message: str) -> int:
@@ -32,6 +36,9 @@ def launch(cfg: ServerConfig, project: Project, short: str, model: str, worktree
     worktree = Path(worktree)
     if not worktree.is_dir():
         return _fail(f"worktree {worktree} does not exist")
+    if os.path.abspath(worktree) == os.path.abspath(project.folder):
+        return _fail(f"worktree {worktree} is the main checkout of project {project.name!r}; "
+                     f"use a separate worktree ({project.folder}-{short})")
     if project_for_path([project], worktree) != project.name:
         return _fail(f"worktree {worktree} does not belong to project {project.name!r}")
     session = f"{project.name}-{short}"
@@ -41,7 +48,7 @@ def launch(cfg: ServerConfig, project: Project, short: str, model: str, worktree
     if len(running) >= cfg.max_strands:
         return _fail(f"project {project.name!r} already has {len(running)} running strands (max_strands {cfg.max_strands})")
     prompt = f"Read {start_file} and carry out the task completely."
-    command = (f"CLAUDE_CODE_AUTO_COMPACT_WINDOW={int(cfg.auto_compact_window)} claude -n {shlex.quote(short)} "
+    command = (f"{CLEAN_ENV}CLAUDE_CODE_AUTO_COMPACT_WINDOW={int(cfg.auto_compact_window)} claude -n {shlex.quote(short)} "
                f"--model {model} --permission-mode auto {shlex.quote(prompt)}; exec bash")
     if not effects.tmux_new_session(session, str(worktree), command):
         return _fail(f"cannot start tmux session {session}")
