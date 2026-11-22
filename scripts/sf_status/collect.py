@@ -82,7 +82,7 @@ def _strand_view(project: str, strand: str, reports: list[dict]) -> StrandView:
     return StrandView(project, strand, state, since, branch, str(reports[-1].get("text", "")))
 
 
-def _read_reports(state_dir: Path, project: str, now: datetime) -> list[tuple[str, str]]:
+def _read_reports(state_dir: Path, project: str) -> list[tuple[str, str]]:
     """(short, first line) of every report file of a project."""
     out = []
     folder = state_dir / "reports" / project
@@ -108,7 +108,7 @@ def _report_events(state_dir: Path, projects: list[Project], now: datetime) -> s
     new = dict(marker)
     present: set[str] = set()
     for p in projects:
-        for short, line in _read_reports(state_dir, p.name, now):
+        for short, line in _read_reports(state_dir, p.name):
             key = f"{p.name}/{short}"
             present.add(key)
             if marker.get(key) == line:
