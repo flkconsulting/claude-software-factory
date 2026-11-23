@@ -182,7 +182,15 @@ How it works:
 2. The strand pushes its branch and runs `sf-status local request --project <name> --strand <short> --step <step> --branch <branch> --commit <sha> [--note <text>]`. It refuses a second request while one is open for the strand.
 3. In the local chat session start the watcher with `run_in_background`: `scripts/local-watch.sh <ssh-target> <project>`. It polls `sf-status local pending` over ssh and ends when something happens; it never exits 0.
 4. The session reads the JSON lines (`id`, `strand`, `step`, `branch`, `commit`, `time`, optional `note`), checks out the commit, runs the step from `AGENTS.md` and records the outcome with `ssh <ssh-target> sf-status local result --project <name> --id <id> --state ok|failed -` (the text on stdin). `local result` only records; it delivers nothing.
-5. Delivery to the strand: with the supervisor on, the trigger `local:<id>` makes the next supervisor run deliver the result. With the supervisor off, the local session runs `printf '%s' "Local step <step> <state>: <text>" | ssh <ssh-target> sf-status deliver --project <name> --strand <short> -` itself. Free text always goes through stdin (`-`): ssh joins its arguments and the remote shell splits them again, so quotes are lost and `;` or `$()` in build output would run on the server.
+5. Delivery to the strand: with the supervisor on, the trigger `local:<id>` makes the next supervisor run deliver the result. With the supervisor off, the local session delivers it itself:
+
+   ```bash
+   ssh <ssh-target> sf-status deliver --project <name> --strand <short> - <<'EOF'
+   Local step <step> <state>: <text>
+   EOF
+   ```
+
+   Free text always goes through stdin (`-`): ssh joins its arguments and the remote shell splits them again, so quotes are lost and `;` or `$()` in build output would run on the server. On the laptop, pass it as a heredoc with the quoted delimiter `<<'EOF'`, never inside double quotes (`printf "…"`, `echo "…"`): the laptop shell would expand `$()` and backticks in the text. The same applies to the text for `local result`.
 6. Start the watcher again after each wake-up.
 
 Notes:
@@ -212,7 +220,7 @@ Environment variables (all optional):
 On the board:
 
 - The section "Waiting for local step" lists open requests (project, id, strand, step, branch, commit, waiting since, last result). It shows `None.` when empty.
-- A strand whose `waiting_for` starts with `local ` is not stall-checked.
+- A strand whose `waiting_for` is `local <id>` is not stall-checked while that request is open. Once a result exists, or if the request was refused, the wait is measured like any other.
 - After `server.local_notice_hours` (default 8) without a result, one warning notice per request appears. It disappears from the board once a result exists. Nothing is restarted.
 - The state is kept in the marker `markers/local.json`.
 

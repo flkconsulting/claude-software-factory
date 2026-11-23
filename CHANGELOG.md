@@ -6,7 +6,7 @@ All notable changes to this project are documented in this file.
 
 ### Added
 - Local steps: events `local_request` and `local_result`; commands `sf-status local request`, `local pending` and `local result` (a request is refused if the commit is not the head of `origin/<branch>` or the strand already has an open one); trigger `local:<id>` for delivery with the supervisor on.
-- Board section "Waiting for local step"; strands waiting for `local <id>` are exempt from the stall check; setting `server.local_notice_hours` (default 8) gives one warning notice per request, hidden once a result exists; marker `markers/local.json`.
+- Board section "Waiting for local step"; strands waiting for `local <id>` are exempt from the stall check while that request is open; setting `server.local_notice_hours` (default 8) gives one warning notice per request, hidden once a result exists; marker `markers/local.json`.
 - `scripts/local-watch.sh`: ssh poller for the local chat session (exit codes 10, 11, 12; per-call ssh timeout).
 - Rules for local steps in the strand start, supervisor task, project `AGENTS.md` template and skill `delegate-work`.
 - `docs/05-server-setup.md`: section "Local steps".
