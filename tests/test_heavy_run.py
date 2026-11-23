@@ -130,3 +130,9 @@ def test_heavy_run_invalid_slots_falls_back_to_two(env):
         release(h1)
         if h2 is not None:
             release(h2)
+
+
+def test_stdin_reaches_command(env):
+    e, _ = env(1)
+    r = run(["cat"], e, input="hello\n")
+    assert r.returncode == 0 and r.stdout == "hello\n"

@@ -36,7 +36,7 @@ while true; do
       # 9>&- keeps the lock out of the child: the slot is tied to this script
       # process alone, so a background process left behind by the command
       # cannot hold it after the command has ended.
-      "$@" 9>&- &
+      "$@" 9>&- <&0 &
       pid=$!
       # Forward TERM and INT to the child; the slot is released (script exit)
       # only after the child has really ended.
