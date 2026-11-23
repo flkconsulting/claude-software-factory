@@ -54,6 +54,12 @@ def _get(d, key, default=UNKNOWN):
     return default
 
 
+def _percent(value) -> str:
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return f"{value:.0%}"
+    return UNKNOWN
+
+
 def _dicts(items) -> list[dict]:
     return [i for i in items if isinstance(i, dict)] if isinstance(items, list) else []
 
@@ -152,12 +158,18 @@ def _usage(usage: dict) -> list:
 
     mapping("By model", "by_model")
     mapping("By project", "by_project")
-    b.append(("p", f"Helper share: {_line(_get(usage, 'helper_share'), 60)}"))
+    share = usage.get("helper_share")
+    if isinstance(share, dict) and share:
+        share_s = ", ".join(f"{k} {_percent(share[k])}" for k in sorted(share, key=str))
+    else:
+        share_s = UNKNOWN
+    b.append(("p", f"Helper share: {_line(share_s, 300)}"))
     b.append(("p", f"Unknown lines: {_line(_get(usage, 'unknown_lines'), 60)}"))
-    top = usage.get("top_context")
-    b.append(("h3", "Top context"))
-    if isinstance(top, list) and top:
-        b.append(("table", ["entry"], [[_cell(json.dumps(t, sort_keys=True, default=str) if isinstance(t, (dict, list)) else t)] for t in top]))
+    top = _dicts(usage.get("top_context"))
+    b.append(("h3", "Top context (main sessions by cache read)"))
+    if top:
+        b.append(("table", ["session", "project", "responses", "cache read"],
+                  [[_cell(_get(t, k)) for k in ("session", "project", "responses", "cache_read")] for t in top]))
     else:
         b.append(("p", UNKNOWN))
     return b

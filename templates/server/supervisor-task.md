@@ -18,7 +18,7 @@ Read first: `<state-dir>/supervisor/notes.md`, then `<state-dir>/STATUS.md`. The
 
 - Only rows of the wave plan with approval `yes` and a met "starts when" condition. Nothing else.
 - Before each start `tmux has-session -t <project>-<short>`: if it exists, do not start again.
-- Before launching, create the worktree `<project-folder>-<short>` on the row's branch if it is missing: `cd <project-folder> && git worktree add -b <branch> <project-folder>-<short>` (existing branch: without `-b`). Pass this worktree to `launch`, never the project folder itself (`launch` refuses it).
+- Before launching, create the worktree `<project-folder>-<short>` on the row's branch if it is missing: `cd <project-folder> && git worktree add -b <branch> <project-folder>-<short> <base>`, where `<base>` is the row's `base` cell; leave it out when the cell is empty or the column is missing (the worktree then starts from the main branch). If the branch already exists: `git worktree add <project-folder>-<short> <branch>`, without `-b` and without `<base>`. If the `base` branch does not exist, do not start and ask with `sf-status question`. Pass this worktree to `launch`, never the project folder itself (`launch` refuses it).
 - The start file `<state-dir>/start/<project>/<short>.md` must exist first (from `strand-start.md`, about 3 KB). Take the model from its `**Model:**` line; if it has none, do not start and ask with `sf-status question`.
 - Start only with `sf-status launch --project <project> --short <short> --model <model> --worktree <project-folder>-<short> --topic "<topic>"`.
 - Merging is a strand of its own, never done in a run.

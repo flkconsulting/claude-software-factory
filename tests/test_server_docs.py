@@ -57,7 +57,8 @@ def test_doc_acceptance_fixes():
     assert "8.19 or newer" in text and "gitleaks git --help" in text
     assert '"additionalDirectories": ["<state-dir>"]' in text
     assert "claude plugin list" in text and "superpowers@claude-plugins-official" in text
-    assert "git merge --ff-only <other-branch>" in text
+    assert "git merge --ff-only <other-branch>" not in text
+    assert "branch, base, migrations" in text and "worktree add -b <branch> <project-folder>-<short> [<base>]" in text
 
 
 def test_setup_and_skill_wording_consistent():

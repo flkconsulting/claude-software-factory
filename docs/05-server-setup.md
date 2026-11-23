@@ -130,12 +130,11 @@ The cron job is what makes the server work on its own. It starts `sf-status run`
 The wave plan is the only source of approvals. The supervisor starts a strand only for a row whose approval cell begins with `yes`.
 
 1. Open `planning/wave-plan.md` (copied in step 7) and delete the example row.
-2. Add one row per strand: short name, title, approval, start condition, branch, migrations, folders that may change.
+2. Add one row per strand: short name, title, approval, start condition, branch, base, migrations, folders that may change. `base` is the branch the strand's worktree starts from; leave it empty for the main branch. A strand that builds on another strand's work ("starts when" names its report) names that strand's branch, for example `feature/a`. Wave plans without the `base` column keep working; their worktrees start from the main branch. Adding the column to a plan that already has approved rows changes every row, so the supervisor sees those rows as newly approved once; run `sf-status wake fast-forward` right after the change if that must not happen.
 3. Leave the approval cell at `no` until you decided. To approve, write your own words into the cell: `yes - "<your quote>"`. Without a quote there is no `yes`.
 4. Write a start file for the strand with the skill `delegate-work` (it uses `templates/server/strand-start.md`), or let the supervisor do it for an approved row.
-5. To start a strand by hand: create its worktree first (`git -C <project-folder> worktree add -b <branch> <project-folder>-<short>`), then `sf-status launch --project <name> --short <short> --model <model> --worktree <project-folder>-<short> --topic <topic>`. `launch` refuses the project folder itself, so strands never share the main checkout.
+5. To start a strand by hand: create its worktree first (`git -C <project-folder> worktree add -b <branch> <project-folder>-<short> [<base>]`), then `sf-status launch --project <name> --short <short> --model <model> --worktree <project-folder>-<short> --topic <topic>`. `launch` refuses the project folder itself, so strands never share the main checkout.
    The folder-trust dialog appears the first time you start `claude` in the project folder (step 7); accept it there. In the acceptance run, worktrees created next to the project folder started without the dialog. Right after the first launch still run `tmux attach -t <project>-<short>` once: if the strand waits for any answer, give it by hand and note it.
-   A strand that builds on another strand's work ("starts when" names its report) gets a worktree made from the main branch, which does not contain the other branch yet. Make the first step of its start file `git merge --ff-only <other-branch>` and check the tests after it.
 6. For a start at a fixed time with a precondition, use `<plugin-dir>/templates/server/watcher.sh` (see `delegate-work`, section "Watcher").
 7. Run full test suites and builds through `<plugin-dir>/scripts/heavy-run.sh <command>`. It lets at most `server.heavy_slots` heavy runs go at once.
 
@@ -226,7 +225,7 @@ Evidence: tests/test_master_data.py 17 passed; full suite via heavy-run 18 passe
 
 B DONE
 Status: time tracking implemented, pushed to origin feature/b.
-Evidence: feature/a brought in via ff-only; full suite via heavy-run 38 passed
+Evidence: feature/a brought in via ff-only (the acceptance run predates the `base` column); full suite via heavy-run 38 passed
 Decisions: over-budget booking refused, as the human answered question b-1
 ```
 

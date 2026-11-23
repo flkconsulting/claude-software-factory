@@ -50,11 +50,12 @@ def test_supervisor_task_forbids_dangerous_flag_and_restart():
 
 def test_wave_plan_columns():
     text = read("wave-plan.md")
-    header = "| short | strand | approval | starts when | branch | migrations | may change |"
+    header = "| short | strand | approval | starts when | branch | base | migrations | may change |"
     assert header in text
     rows = parse_wave_plan(text)
     assert len(rows) >= 1
     assert all(not r.approved for r in rows)
+    assert rows[0].base == "feature/other"
     assert "approval" in text.lower() and "quote" in text.lower()
 
 

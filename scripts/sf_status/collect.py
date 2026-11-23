@@ -19,6 +19,9 @@ MAX_RECENT = 20
 MAX_RUNS = 5
 HUMAN_WAIT = ("human", "heavy-run")
 SUPERVISOR_STRAND = "supervisor"  # runs without a tmux session
+STALL_TITLE = ": possibly stalled"
+GONE_TITLE = ": tmux session missing"
+FINISHED = ("done", "blocked")
 PRICES_FILE = Path(__file__).with_name("prices.json")
 
 
@@ -146,6 +149,15 @@ def _reset_stall(entry: dict) -> bool:
     return changed
 
 
+def _obsolete(notice: dict, finished: dict[tuple[str, str], str]) -> bool:
+    """A stall or missing-session notice of a strand that reported done or blocked after it."""
+    strand = notice.get("strand")
+    if not isinstance(strand, str) or notice.get("title") not in (strand + STALL_TITLE, strand + GONE_TITLE):
+        return False
+    done_at = finished.get((str(notice.get("project", "")), strand))
+    return done_at is not None and done_at >= str(notice.get("time", ""))
+
+
 def running_strand_sessions(projects: list[Project], name: str) -> list[str]:
     """tmux sessions '<name>-<strand>' whose pane lies in project `name`, without the supervisor."""
     found = []
@@ -218,7 +230,7 @@ def collect(cfg: ServerConfig, projects: list[Project], now: float,
             minutes = int((now - float(marker[name].get("since", now))) // 60)
             write(project, {"kind": "stall", "strand": strand, "session": name, "minutes": minutes})
             write(project, {"kind": "notice", "strand": strand, "level": "warning",
-                            "title": f"{strand}: possibly stalled",
+                            "title": f"{strand}{STALL_TITLE}",
                             "text": f"{name}: screen unchanged for {minutes} min, possibly stalled."})
         wrote = True
 
@@ -237,7 +249,7 @@ def collect(cfg: ServerConfig, projects: list[Project], now: float,
             entry = marker.setdefault(name, {})
             if not entry.get("gone"):
                 write(project, {"kind": "notice", "strand": strand, "level": "info",
-                                "title": f"{strand}: tmux session missing",
+                                "title": f"{strand}{GONE_TITLE}",
                                 "text": f"{name}: tmux session not found and no report. Please check."})
                 entry["gone"] = True
                 wrote = True
@@ -270,7 +282,10 @@ def collect(cfg: ServerConfig, projects: list[Project], now: float,
     all_events = _sorted(all_events)
     result.questions = _sorted(open_q)
     result.tasks = _sorted(list(tasks.values()))
-    result.notices = [e for e in all_events if e.get("kind") == "notice" and str(e.get("time", "")) >= cutoff][-MAX_NOTICES:]
+    finished = {(str(e.get("project", "")), e["strand"]): str(e.get("time", "")) for e in all_events
+                if e.get("kind") == "report" and e.get("state") in FINISHED and isinstance(e.get("strand"), str)}
+    result.notices = [e for e in all_events if e.get("kind") == "notice" and str(e.get("time", "")) >= cutoff
+                      and not _obsolete(e, finished)][-MAX_NOTICES:]
     result.recent = all_events[-MAX_RECENT:]
     result.runs = _runs(state_dir)
     if cfg.usage_report:

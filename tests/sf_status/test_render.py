@@ -147,3 +147,20 @@ def test_usage_by_model_row_shows_numbers_and_unknown_usd():
     u = {"day": "d", "by_model": {"m1": {"responses": 2, "usd": 1.5}, "m2": {"responses": 1, "usd": None}}}
     md = render.render_markdown(make_state(usage=u), NOW)
     assert "responses 2" in md and "usd 1.5" in md and "usd unknown" in md
+
+
+def test_usage_helper_share_and_top_context_readable():
+    u = {"day": "d", "helper_share": {"haiku": 0.25, "sonnet": 1.0},
+         "top_context": [{"session": "abcd1234", "project": "alpha", "responses": 7, "cache_read": 900}]}
+    md = render.render_markdown(make_state(usage=u), NOW)
+    assert "Helper share: haiku 25%, sonnet 100%" in md
+    assert "| session | project | responses | cache read |" in md
+    assert "| abcd1234 | alpha | 7 | 900 |" in md
+    assert "{" not in md.split("## Usage", 1)[1].split("## Recent", 1)[0]
+
+
+def test_usage_helper_share_and_top_context_robust():
+    u = {"day": "d", "helper_share": {"haiku": "x"}, "top_context": ["odd", {"session": "s"}]}
+    md = render.render_markdown(make_state(usage=u), NOW)
+    assert "Helper share: haiku unknown" in md
+    assert "| s | unknown | unknown | unknown |" in md

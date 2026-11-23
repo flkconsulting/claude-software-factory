@@ -215,3 +215,51 @@ def test_launched_strand_without_report_is_not_reported_gone(cfg, state, project
     events.append(state, "alpha", {"kind": "start", "strand": "zzz", "topic": "t", "text": "started"})
     collect.collect(cfg, projects, NOW)
     assert of_kind(state, "notice") == []
+
+
+def _at(ts):
+    from datetime import datetime, timezone
+    return datetime.fromtimestamp(ts, timezone.utc)
+
+
+def _visible_titles(s):
+    return [n["title"] for n in s.notices]
+
+
+def test_stall_notice_dropped_after_strand_done(cfg, state, projects, fake):
+    running(cfg, state, projects, fake)
+    events.append(state, "alpha", {"kind": "notice", "strand": "a", "level": "info",
+                                   "title": "a: own note", "text": "keep me"}, _at(NOW))
+    collect.collect(cfg, projects, NOW)
+    s = collect.collect(cfg, projects, NOW + LIMIT)
+    assert "a: possibly stalled" in _visible_titles(s)
+    write_report(state, "a", "A DONE")
+    s = collect.collect(cfg, projects, NOW + LIMIT + 60)
+    assert "a: possibly stalled" not in _visible_titles(s)
+    assert "a: own note" in _visible_titles(s)
+    assert len([n for n in of_kind(state, "notice") if n["title"] == "a: possibly stalled"]) == 1  # log untouched
+
+
+def test_stall_notice_kept_while_strand_runs(cfg, state, projects, fake):
+    running(cfg, state, projects, fake)
+    collect.collect(cfg, projects, NOW)
+    collect.collect(cfg, projects, NOW + LIMIT)
+    events.append(state, "alpha", {"kind": "report", "strand": "a", "state": "running", "text": "x"},
+                  _at(NOW + LIMIT + 30))
+    s = collect.collect(cfg, projects, NOW + LIMIT + 60)
+    assert "a: possibly stalled" in _visible_titles(s)
+
+
+def test_gone_notice_dropped_after_strand_blocked(cfg, state, projects, fake):
+    events.append(state, "alpha", {"kind": "report", "strand": "a", "state": "running", "text": "x"}, _at(NOW))
+    s = collect.collect(cfg, projects, NOW)
+    assert "a: tmux session missing" in _visible_titles(s)
+    events.append(state, "alpha", {"kind": "report", "strand": "a", "state": "blocked", "text": "x"}, _at(NOW + 30))
+    s = collect.collect(cfg, projects, NOW + 60)
+    assert "a: tmux session missing" not in _visible_titles(s)
+    events.append(state, "alpha", {"kind": "report", "strand": "a", "state": "running", "text": "rework"},
+                  _at(NOW + 90))
+    fake.sessions = [("alpha-a", projects[0].folder + "-a")]
+    fake.panes = {"alpha-a": "busy\n"}
+    s = collect.collect(cfg, projects, NOW + 120)
+    assert "a: tmux session missing" not in _visible_titles(s)
