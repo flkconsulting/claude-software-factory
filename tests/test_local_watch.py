@@ -1,5 +1,6 @@
 import os
 import subprocess
+import time
 from pathlib import Path
 
 import pytest
@@ -27,6 +28,7 @@ def fake(tmp_path):
             "  empty) exit 0 ;;\n"
             f"  line) echo '{LINE}'; exit 0 ;;\n"
             "  fail) exit 255 ;;\n"
+            "  hang) exec sleep 987 ;;\n"
             "esac\n",
             encoding="utf-8",
         )
@@ -48,7 +50,7 @@ def count(calls):
     return len(calls.read_text().splitlines()) if calls.exists() else 0
 
 
-@pytest.mark.parametrize("args", [[], ["-oProxyCommand=x", "alpha"], ["host", "Bad;Name"], ["host"], ["host", "alpha", "x"]])
+@pytest.mark.parametrize("args", [[], ["-oProxyCommand=x", "alpha"], ["host", "Bad;Name"], ["host"], ["host", "alpha", "x"], ["host", "alpha\nx"], ["ho\nst", "alpha"], ["host\ntouch x", "alpha"]])
 def test_usage_exit_2(fake, args):
     e, calls = fake(["empty"])
     r = run(args, e)
@@ -92,3 +94,15 @@ def test_max_duration_exits_12(fake):
     e, _ = fake(["empty"], SF_LOCAL_WATCH_MAX_SECONDS="1")
     r = run(["host", "alpha"], e)
     assert r.returncode == 12
+
+
+def test_hung_ssh_times_out_exit_11(fake, tmp_path):
+    e, calls = fake(["hang"], SF_LOCAL_WATCH_SSH_TIMEOUT="1")
+    start = time.time()
+    r = run(["host", "alpha"], e)
+    assert r.returncode == 11
+    assert "timed out" in r.stderr
+    assert time.time() - start < 15
+    assert count(calls) == 1
+    ps = subprocess.run(["ps", "-axo", "command"], capture_output=True, text=True).stdout
+    assert "sleep 987" not in [l.strip() for l in ps.splitlines()]
