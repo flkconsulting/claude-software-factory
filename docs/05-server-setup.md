@@ -88,7 +88,7 @@ If the server may not reach your normal remote, give it a bare repository that y
 
 1. On the server: `git init --bare --initial-branch=main <bare-dir>`. Without the option, git 2.43 points `HEAD` at `master`, and a clone says "remote HEAD refers to nonexistent ref" and checks out nothing. For an existing bare repository: `git -C <bare-dir> symbolic-ref HEAD refs/heads/main`.
 2. In the project folder: `git remote add <remote-name> <bare-dir>`, or, if `origin` points elsewhere, `git remote set-url origin <bare-dir>`.
-3. Seed first, then protect: push `main` (and existing branches) once, before step 4, because the protection refuses pushes to `main`: `git push origin main`.
+3. Seed first, then protect: push `main` (and existing branches) once, before step 4, because the protection refuses pushes to `main`: `git push <remote-name> main` (or `origin`).
 4. Protect the bare remote itself, because it has no branch protection of its own. Run `git -C <bare-dir> config receive.denyNonFastForwards true` and `git -C <bare-dir> config receive.denyDeletes true`. Then create the file `<bare-dir>/hooks/update` with the content below and make it executable (`chmod +x`). It refuses every push to `main` and `release/*` from the server user; you merge on your laptop. Check: a second `git push origin main` is refused.
 
    ```bash
