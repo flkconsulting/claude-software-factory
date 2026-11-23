@@ -8,7 +8,7 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 
-MAX_LINE = 4000  # bytes; below PIPE_BUF so an O_APPEND write is never torn
+MAX_LINE = 4000  # bytes; one O_APPEND write per line puts every line at the end of the file, the limit keeps lines small
 ID_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 STATES = ("running", "waiting", "blocked", "done")
 LEVELS = ("approval", "decision", "info", "warning")

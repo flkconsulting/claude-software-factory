@@ -272,3 +272,16 @@ def test_running_strand_sessions_counts_unreadable_events_as_running(state, proj
         raise OSError("denied")
     monkeypatch.setattr(events, "read", boom)
     assert collect.running_strand_sessions(projects, "alpha", state) == ["alpha-a"]
+
+
+def test_collect_survives_usage_error(cfg, state, projects, fake, monkeypatch):
+    from dataclasses import replace
+    from sf_status import usage as usage_mod
+
+    def boom(*a, **k):
+        raise RuntimeError("changed format")
+
+    monkeypatch.setattr(usage_mod, "summarize", boom)
+    report(state, "a")
+    s = collect.collect(replace(cfg, usage_report=True), projects, NOW)
+    assert s.usage is None and "alpha/a" in s.strands

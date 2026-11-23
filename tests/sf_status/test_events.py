@@ -92,3 +92,16 @@ def test_open_questions(state):
     assert set(events.open_questions(got)) == {"a-1"}
     got.append(events.append(state, "p", {"kind": "answer", "strand": "a", "question_id": "a-1", "text": "y"}))
     assert events.open_questions(got) == {}
+
+
+def test_append_accepts_4000_bytes_rejects_4001(state):
+    def line_size(text):
+        return len((json.dumps({**_report(text), "time": "2026-01-02T03:04:05Z", "project": "p"},
+                               sort_keys=True, ensure_ascii=False) + "\n").encode("utf-8"))
+
+    n = 4000 - line_size("")
+    assert line_size("x" * n) == 4000
+    events.append(state, "p", _report("x" * n))
+    assert (state / "events" / "p.jsonl").stat().st_size == 4000
+    with pytest.raises(ValueError):
+        events.append(state, "p", _report("x" * (n + 1)))

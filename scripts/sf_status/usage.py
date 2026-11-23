@@ -36,9 +36,12 @@ def _blank() -> dict:
 def _add(total: dict, model: str, u: dict, prices: dict) -> None:
     inp, out = _num(u.get("input_tokens")), _num(u.get("output_tokens"))
     cache_read = _num(u.get("cache_read_input_tokens"))
-    cache_write = _num(u.get("cache_creation_input_tokens"))
     cc = u.get("cache_creation") if isinstance(u.get("cache_creation"), dict) else {}
     h1 = _num(cc.get("ephemeral_1h_input_tokens"))
+    if "cache_creation_input_tokens" in u:
+        cache_write = _num(u.get("cache_creation_input_tokens"))
+    else:
+        cache_write = _num(cc.get("ephemeral_5m_input_tokens")) + h1
     m5 = _num(cc.get("ephemeral_5m_input_tokens")) if "ephemeral_5m_input_tokens" in cc else max(cache_write - h1, 0)
     total["responses"] += 1
     total["input"] += inp

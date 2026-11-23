@@ -101,6 +101,7 @@ def test_pause_file_blocks(env):
     (env.state / "supervisor" / "pause").write_text("")
     assert cli.main(["run"]) == 0
     assert env.spawned == []
+    assert any("supervisor paused" in ln for ln in (env.state / "run.log").read_text().splitlines())
 
 
 def test_dry_run_starts_and_commits_nothing(env):

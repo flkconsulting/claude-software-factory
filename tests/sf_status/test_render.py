@@ -164,3 +164,24 @@ def test_usage_helper_share_and_top_context_robust():
     md = render.render_markdown(make_state(usage=u), NOW)
     assert "Helper share: haiku unknown" in md
     assert "| s | unknown | unknown | unknown |" in md
+
+
+def test_md_escapes_backslash():
+    s = make_state()
+    s.strands["alpha/s1"].text = "a\\"
+    md = render.render_markdown(s, NOW)
+    row = [ln for ln in md.splitlines() if ln.startswith("| alpha | s1")]
+    assert len(row) == 1 and "a\\\\" in row[0]
+    lines = md.splitlines()
+    header = lines[lines.index(row[0]) - 2]
+    unescaped = re.compile(r"(?<!\\)\|")
+    assert len(unescaped.findall(row[0])) == len(unescaped.findall(header))
+
+
+def test_ctrl_strips_c1_and_bidi():
+    s = make_state()
+    s.strands["alpha/s1"].text = "a\x85b\u202ec\u2066d\u2069e\x9ff"
+    for md in (render.render_markdown(s, NOW), render.render_html(s, NOW)):
+        for ch in ("\x85", "\u202e", "\u2066", "\u2069", "\x9f"):
+            assert ch not in md
+        assert "abcdef" in md

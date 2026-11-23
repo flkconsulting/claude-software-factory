@@ -20,7 +20,7 @@ CELL_MAX = 200
 TEXT_MAX = 1000
 UNKNOWN = "unknown"
 ANSI = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b[@-Z\\-_]")
-CTRL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
+CTRL = re.compile("[\x00-\x08\x0b-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069]")
 WS = re.compile(r"\s+")
 USAGE_NOTE = "list-price equivalent, not an invoice"
 
@@ -199,7 +199,7 @@ def _stamp(now: datetime) -> str:
 
 def _md(text: str) -> str:
     """Defuse Markdown/HTML in free text: no raw HTML, links or code spans."""
-    for ch, rep in (("&", "&amp;"), ("<", "&lt;"), (">", "&gt;"), ("`", "\\`"), ("[", "\\["), ("]", "\\]")):
+    for ch, rep in (("\\", "\\\\"), ("&", "&amp;"), ("<", "&lt;"), (">", "&gt;"), ("`", "\\`"), ("[", "\\["), ("]", "\\]")):
         text = text.replace(ch, rep)
     return text
 
