@@ -170,16 +170,19 @@ def test_launch_command_drops_supervisor_environment(cfg, project, worktree, fak
     start_file(cfg)
     assert launch.launch(cfg, project, "alpha", "sonnet", worktree, "t") == 0
     command = fake.started[0][2]
-    for name in ("SF_SOURCE", "CLAUDECODE", "CLAUDE_PID", "CLAUDE_CODE_"):
+    for name in effects.SESSION_ENV_NAMES:
         assert name in command.split(" claude ")[0]
     # run only the cleaning prefix in a real shell with a polluted environment
     prefix = command.split("CLAUDE_CODE_AUTO_COMPACT_WINDOW", 1)[0]
-    env = {**os.environ, "SF_SOURCE": "supervisor", "CLAUDECODE": "1", "CLAUDE_CODE_SESSION_ID": "x",
-           "CLAUDE_CODE_FUTURE_THING": "y", "CLAUDE_PID": "1", "KEEP_ME": "z"}
+    kept = {"CLAUDE_CODE_OAUTH_TOKEN": "t", "CLAUDE_CODE_USE_BEDROCK": "1", "CLAUDE_CODE_FUTURE_THING": "y",
+            "KEEP_ME": "z"}
+    env = {**os.environ, **{n: "1" for n in effects.SESSION_ENV_NAMES}, **kept}
     out = subprocess.run(["sh", "-c", prefix + "env"], env=env, capture_output=True, text=True).stdout
-    assert "KEEP_ME=z" in out
-    for name in ("SF_SOURCE", "CLAUDECODE", "CLAUDE_CODE_", "CLAUDE_PID"):
-        assert name not in out
+    lines = out.splitlines()
+    for name, value in kept.items():
+        assert f"{name}={value}" in lines
+    for name in effects.SESSION_ENV_NAMES:
+        assert not any(line.startswith(name + "=") for line in lines)
 
 
 def test_tmux_new_session_env_is_clean(monkeypatch):
@@ -194,12 +197,12 @@ def test_tmux_new_session_env_is_clean(monkeypatch):
         return R()
 
     monkeypatch.setattr(effects.subprocess, "run", run)
-    monkeypatch.setenv("SF_SOURCE", "supervisor")
-    monkeypatch.setenv("CLAUDECODE", "1")
-    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "x")
-    monkeypatch.setenv("CLAUDE_PID", "1")
-    monkeypatch.setenv("KEEP_ME", "z")
+    for name in effects.SESSION_ENV_NAMES:
+        monkeypatch.setenv(name, "1")
+    kept = ("CLAUDE_CODE_OAUTH_TOKEN", "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_FUTURE_THING", "KEEP_ME")
+    for name in kept:
+        monkeypatch.setenv(name, "z")
     assert effects.tmux_new_session("n", "/tmp", "cmd")
     env = seen["env"]
-    assert env["KEEP_ME"] == "z"
-    assert not [k for k in env if k in ("SF_SOURCE", "CLAUDECODE", "CLAUDE_PID") or k.startswith("CLAUDE_CODE_")]
+    assert all(env[name] == "z" for name in kept)
+    assert not [k for k in env if k in effects.SESSION_ENV_NAMES]

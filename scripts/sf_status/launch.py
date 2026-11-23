@@ -11,9 +11,9 @@ from .projects import Project, project_for_path
 
 MODELS = ("haiku", "sonnet", "opus")
 FOLLOWUP_HEADING = "## Follow-up "
-# A strand must not inherit the supervisor's or an outer Claude Code session's variables (fixed names only).
-CLEAN_ENV = ("unset SF_SOURCE CLAUDECODE CLAUDE_PID; "
-             "for v in $(env | sed -n 's/^\\(CLAUDE_CODE_[A-Za-z0-9_]*\\)=.*/\\1/p'); do unset \"$v\"; done; ")
+# A strand must not inherit the session-identity variables of the supervisor or an outer Claude Code session
+# (fixed names, see effects.SESSION_ENV_NAMES); auth, provider and config variables are kept.
+CLEAN_ENV = "unset " + " ".join(effects.SESSION_ENV_NAMES) + "; "
 
 
 def _fail(message: str) -> int:

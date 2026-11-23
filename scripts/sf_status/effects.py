@@ -45,14 +45,20 @@ def capture_pane(session: str) -> str | None:
     return r.stdout if r and r.returncode == 0 else None
 
 
+# Variables that identify the running (outer) session; auth, provider and config variables are not listed.
+SESSION_ENV_NAMES = ("SF_SOURCE", "CLAUDECODE", "CLAUDE_PID", "CLAUDE_CODE_ENTRYPOINT", "CLAUDE_CODE_SESSION_ID",
+                     "CLAUDE_CODE_CHILD_SESSION", "CLAUDE_CODE_CHILD_NOTES_DIR", "CLAUDE_CODE_SESSION_ATTENDED",
+                     "CLAUDE_CODE_MESSAGING_SOCKET", "CLAUDE_CODE_MESSAGING_TOKEN")
+
+
 def strand_env(environ: dict) -> dict:
-    """Environment without the supervisor marker and the variables of a running Claude Code session.
+    """Environment without the session-identity variables (SESSION_ENV_NAMES, exact names only).
 
     A strand must not look like it was started from inside another session (it would not save its
-    transcript) and must not pass the reserved-strand check as the supervisor.
+    transcript) and must not pass the reserved-strand check as the supervisor. Auth, provider and
+    config variables (e.g. CLAUDE_CODE_OAUTH_TOKEN, CLAUDE_CODE_USE_BEDROCK) stay, so the strand can log in.
     """
-    return {k: v for k, v in environ.items()
-            if k not in ("SF_SOURCE", "CLAUDECODE", "CLAUDE_PID") and not k.startswith("CLAUDE_CODE_")}
+    return {k: v for k, v in environ.items() if k not in SESSION_ENV_NAMES}
 
 
 def tmux_new_session(name: str, cwd: str, command: str) -> bool:
