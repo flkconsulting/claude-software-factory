@@ -36,7 +36,7 @@ ID_FIELDS = ("id", "question_id", "request_id")
 
 
 def valid_id(value) -> bool:
-    return isinstance(value, str) and bool(ID_RE.match(value))
+    return isinstance(value, str) and bool(ID_RE.fullmatch(value))
 
 
 def events_file(state_dir: Path, project: str) -> Path:
@@ -72,9 +72,9 @@ def _validate(project: str, event: dict) -> None:
     if kind == "local_request":
         if not valid_id(event["step"]):
             raise ValueError(f"invalid step: {event['step']!r}")
-        if not (isinstance(event["branch"], str) and BRANCH_RE.match(event["branch"])):
+        if not (isinstance(event["branch"], str) and BRANCH_RE.fullmatch(event["branch"])):
             raise ValueError(f"invalid branch: {event['branch']!r}")
-        if not (isinstance(event["commit"], str) and COMMIT_RE.match(event["commit"])):
+        if not (isinstance(event["commit"], str) and COMMIT_RE.fullmatch(event["commit"])):
             raise ValueError(f"invalid commit: {event['commit']!r}")
     if kind == "local_result" and event["state"] not in LOCAL_STATES:
         raise ValueError(f"invalid local state: {event['state']!r}")
@@ -174,5 +174,6 @@ def open_local(events: list[dict]) -> dict[str, dict]:
 
 
 def next_local_id(events: list[dict], strand: str) -> str:
+    """Next request id for a strand: <strand>-l<n>, n = 1 + its earlier local requests."""
     n = sum(1 for e in events if e.get("kind") == "local_request" and e.get("strand") == strand)
     return f"{strand}-l{n + 1}"

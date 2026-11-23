@@ -123,7 +123,8 @@ def test_local_request_roundtrip(state):
 @pytest.mark.parametrize("field,value", [
     ("branch", "-x"), ("branch", "a;b"), ("branch", "a b"),
     ("commit", "XYZ"), ("commit", "abc"), ("commit", "a" * 41),
-    ("step", "Bad Step"),
+    ("step", "Bad Step"), ("branch", "feature/x\n"), ("commit", "abc1234\n"),
+    ("step", "extension-install\n"),
 ])
 def test_local_request_rejects_hostile_values(state, field, value):
     with pytest.raises(ValueError):
@@ -154,3 +155,7 @@ def test_open_local_and_next_id(state):
     assert got["a-l2"]["kind"] == "local_request"
     assert events.next_local_id(evs, "a") == "a-l3"
     assert events.next_local_id(evs, "c") == "c-l1"
+
+
+def test_valid_id_rejects_trailing_newline():
+    assert events.valid_id("a") and not events.valid_id("a\n")
