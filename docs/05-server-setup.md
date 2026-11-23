@@ -107,7 +107,7 @@ If the server may not reach your normal remote, give it a bare repository that y
 5. It proposes `sf-status project add <name> --title <title> --folder <project-folder> ...` and runs it only after you agree.
 6. It copies the wave plan template to `planning/wave-plan.md` and the supervisor task to `<state-dir>/supervisor/task.md`, with `<state-dir>` filled in.
 7. It shows the cron line and the additions for `settings.json`, and writes them only after your explicit consent. Step 8 explains the cron line, the section "Security limits" the permission additions.
-8. Allow the state folder for all sessions of `<work-user>`. Strands read their start file and write their report in `<state-dir>`, which lies outside their worktree; without this entry each strand stops at the question "Allow this read outside the working directories?", and nobody answers it. Add the absolute path to `~/.claude/settings.json` of `<work-user>`, next to the deny list:
+8. Check that the state folder is allowed for all sessions of `<work-user>` (the setup command writes it with your consent in the step before; add it by hand if you skipped that). Strands read their start file and write their report in `<state-dir>`, which lies outside their worktree; without this entry each strand stops at the question "Allow this read outside the working directories?", and nobody answers it. Add the absolute path to `~/.claude/settings.json` of `<work-user>`, next to the deny list:
 
    ```json
    "permissions": { "additionalDirectories": ["<state-dir>"] }
@@ -179,7 +179,7 @@ You can stop the server layer at any time; variant A and the hooks keep working.
 ## Security limits
 
 - **Permissions.** Strands and the supervisor run with `claude --permission-mode auto`, with the model named explicitly. Never `--dangerously-skip-permissions`. Permission prompts of other sessions are not approved by any session.
-- **Deny list.** `<plugin-dir>/templates/server/settings.json` is a deny list for the work user (push to `main` or `release/*`, force push, `--no-verify` on push and commit, `git reset --hard`, `git clean`, forced `rm`). Add its entries to the `settings.json` of the work user. It is a **best-effort** list: patterns can be bypassed by other wording.
+- **Deny list.** `<plugin-dir>/templates/server/settings.json` is a deny list for the work user (push to `main` or `release/*`, force push, `--no-verify` on push and commit, `git reset --hard`, `git clean`, forced `rm`). Add its entries to the `settings.json` of the work user, with `<state-dir>` replaced by the absolute state folder (`sf-status config state_dir`). It is a **best-effort** list: patterns can be bypassed by other wording.
 - **What each guard does.** The pre-push hook (step 6) only scans for secrets; it does not stop a push to `main`, and `git push --no-verify` skips it (which is why that flag is on the deny list). What actually stops a push to a protected branch is the protection of the remote: branch protection on GitHub, or the `update` hook of the bare remote (section "Remotes without GitHub access"). Without one of them nothing prevents it.
 - **Approval.** Only your quote in the wave plan approves a strand. The supervisor never invents an approval.
 - **Secrets.** Never put secrets into start files, notices, reports or the wave plan. Use the environment or the key store of the work user. Wake triggers and supervisor prompts contain only fixed words and ids, never free text from events.
