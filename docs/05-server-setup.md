@@ -22,7 +22,7 @@ If you run the scripts on macOS instead of Linux: `heavy-run.sh` uses `readlink 
 ## 1. Create a user without root
 
 1. Log in to the server with your admin access.
-2. Create the work user: `sudo adduser <work-user>`.
+2. Create the work user: `sudo adduser --disabled-password --gecos "" <work-user>`. A password is not needed when the user logs in with ssh keys only (step 4); plain `sudo adduser <work-user>` is interactive and asks for one.
 3. Do not add this user to the `sudo` group.
 4. Add your public ssh key to that user's `~/.ssh/authorized_keys`.
 5. Log in as `<work-user>` from now on.
@@ -32,6 +32,7 @@ If you run the scripts on macOS instead of Linux: `heavy-run.sh` uses `readlink 
 1. As the admin user, install what is missing: `sudo apt install tmux git util-linux cron python3`. Node comes from the official Claude Code installation guide (step 3), not from `apt` by default: the `apt` version of Node on Ubuntu may be older than Claude Code needs. Install `gitleaks` 8.19 or newer with the method you trust. The `apt` package of Ubuntu 24.04 is older (8.16) and lacks the `gitleaks git` command the pre-push hook uses, so every push would fail: take the release archive from the project's release page, check it against the published checksums and put the binary into `/usr/local/bin`.
 2. Check each tool as `<work-user>`: `command -v tmux git flock crontab python3 gitleaks`. Every name must print a path. Then `gitleaks git --help` must print the help of that command, not "unknown command".
 3. Check the Python version: `python3 --version` must show 3.10 or newer.
+4. As `<work-user>`, set the git identity, or the commits of the strands fail: `git config --global user.name "<name>"` and `git config --global user.email "<email>"`.
 
 ## 3. Claude Code login: install and log in yourself
 
@@ -54,7 +55,7 @@ If you run the scripts on macOS instead of Linux: `heavy-run.sh` uses `readlink 
 The templates call `sf-status` by its bare name, so it must be found on the `PATH` of your login shell and of cron.
 
 1. Link the script into a folder that is on the `PATH`: `mkdir -p ~/.local/bin` and `ln -s <plugin-dir>/scripts/bin/sf-status ~/.local/bin/sf-status`.
-2. Make sure `~/.local/bin` is on the `PATH` (add it to `~/.profile` if not).
+2. Make sure `~/.local/bin` is on the `PATH` (add it to `~/.profile` if not). A non-interactive ssh shell, which the local-steps watcher uses, does not read `~/.profile`: if you plan local steps, put the `PATH` line above the non-interactive guard in `~/.bashrc` now (see "Local steps").
 3. Test it: `sf-status --help` prints the list of commands.
 4. Find the folders of both programs: `command -v claude sf-status`. Cron starts the tmux sessions with its own short `PATH`, and the strands and the supervisor call `claude` and `sf-status` by their bare names. Every folder printed here must be on the `PATH` line of the crontab (step 8). The cron line itself calls `sf-status` by its full path, so it is not affected.
 
@@ -85,9 +86,10 @@ The templates call `sf-status` by its bare name, so it must be found on the `PAT
 
 If the server may not reach your normal remote, give it a bare repository that you fetch from yourself.
 
-1. On the server: `git init --bare <bare-dir>`.
-2. In the project folder: `git remote add <remote-name> <bare-dir>`.
-3. Protect the bare remote itself, because it has no branch protection of its own. Run `git -C <bare-dir> config receive.denyNonFastForwards true` and `git -C <bare-dir> config receive.denyDeletes true`. Then create the file `<bare-dir>/hooks/update` with the content below and make it executable (`chmod +x`). It refuses every push to `main` and `release/*` from the server user; you merge on your laptop.
+1. On the server: `git init --bare --initial-branch=main <bare-dir>`. Without the option, git 2.43 points `HEAD` at `master`, and a clone says "remote HEAD refers to nonexistent ref" and checks out nothing. For an existing bare repository: `git -C <bare-dir> symbolic-ref HEAD refs/heads/main`.
+2. In the project folder: `git remote add <remote-name> <bare-dir>`, or, if `origin` points elsewhere, `git remote set-url origin <bare-dir>`.
+3. Seed first, then protect: push `main` (and existing branches) once, before step 4, because the protection refuses pushes to `main`: `git push origin main`.
+4. Protect the bare remote itself, because it has no branch protection of its own. Run `git -C <bare-dir> config receive.denyNonFastForwards true` and `git -C <bare-dir> config receive.denyDeletes true`. Then create the file `<bare-dir>/hooks/update` with the content below and make it executable (`chmod +x`). It refuses every push to `main` and `release/*` from the server user; you merge on your laptop. Check: a second `git push origin main` is refused.
 
    ```bash
    #!/usr/bin/env bash
@@ -96,7 +98,7 @@ If the server may not reach your normal remote, give it a bare repository that y
      refs/heads/main|refs/heads/release/*) echo "push to $1 is refused here" >&2; exit 1 ;;
    esac
    ```
-4. Strands push their feature branch there (the pre-push hook still runs). On your laptop you fetch it with `git fetch <ssh-target>:<bare-dir> <branch>` and review it as usual.
+5. Strands push their feature branch there (the pre-push hook still runs). On your laptop you fetch it with `git fetch <ssh-target>:<bare-dir> <branch>` and review it as usual.
 
 ## 7. Run `/setup-workflow`, variant B
 
@@ -106,7 +108,7 @@ If the server may not reach your normal remote, give it a bare repository that y
 4. It proposes the `server` section of `~/.claude/software-factory.json` as a diff. Set `enabled` to `true` there; `supervisor` stays `false` until you want the supervisor (see "Switching the supervisor on").
 5. It proposes `sf-status project add <name> --title <title> --folder <project-folder> ...` and runs it only after you agree.
 6. It copies the wave plan template to `planning/wave-plan.md` and the supervisor task to `<state-dir>/supervisor/task.md`, with `<state-dir>` filled in.
-7. It shows the cron line and the additions for `settings.json`, and writes them only after your explicit consent. Step 8 explains the cron line, the section "Security limits" the permission additions.
+7. It shows the cron line and the additions for `settings.json`, and writes the crontab and the additions only after your explicit consent. Step 8 explains the cron line, the section "Security limits" the permission additions.
 8. Check that the state folder is allowed for all sessions of `<work-user>` (the setup command writes it with your consent in step 7, as an `additionalDirectories` entry; add it by hand if you skipped that). Strands read their start file and write their report in `<state-dir>`, which lies outside their worktree; without this entry each strand stops at the question "Allow this read outside the working directories?", and nobody answers it. Add the absolute path to `~/.claude/settings.json` of `<work-user>`, next to the deny list:
 
    ```json
@@ -119,8 +121,8 @@ If the server may not reach your normal remote, give it a bare repository that y
 
 The cron job is what makes the server work on its own. It starts `sf-status run` every three minutes under `flock`, so two runs never overlap.
 
-1. Open the editor with `crontab -e`.
-2. Add the lines of `<plugin-dir>/templates/server/crontab.txt` with `<home>` replaced by the absolute home folder of `<work-user>` (cron does not expand `~` or `$HOME` there). Add every folder from step 5.4 that is not yet on the `PATH` line (for example the folder of `claude`, if it is not `<home>/.local/bin`). Replace `<state-dir>` with your state folder (default `~/.claude/software-factory/server`, spelled out as an absolute path) and `<plugin-dir>` by the plugin folder. Keep the line `LANG=C.UTF-8`: without it, the tmux sessions that cron starts show umlauts and other non-ASCII characters as `_`.
+1. Check what `/setup-workflow` wrote (step 7.7): `crontab -l` must show the `PATH` line with every folder from step 5.4, the line `LANG=C.UTF-8`, the cron line with `<home>`, `<state-dir>` and `<plugin-dir>` filled in as absolute paths. If all of this is right, skip to step 4.
+2. Fallback, if you declined the crontab in the setup: open the editor with `crontab -e` and add the lines of `<plugin-dir>/templates/server/crontab.txt` with `<home>` replaced by the absolute home folder of `<work-user>` (cron does not expand `~` or `$HOME` there). Add every folder from step 5.4 that is not yet on the `PATH` line (for example the folder of `claude`, if it is not `<home>/.local/bin`). Replace `<state-dir>` with your state folder (default `~/.claude/software-factory/server`, spelled out as an absolute path) and `<plugin-dir>` by the plugin folder. Keep the line `LANG=C.UTF-8`: without it, the tmux sessions that cron starts show umlauts and other non-ASCII characters as `_`.
 3. Save and check with `crontab -l`.
 4. After three minutes look at `<state-dir>/run.log` and `<state-dir>/STATUS.md`. A run that has nothing to report writes nothing to `run.log`: an empty log together with a fresh time stamp in `STATUS.md` (line "Generated") means the job works. A line "server mode disabled" means `server.enabled` is still not `true`.
 5. A cron run does not end with an error trace; a problem is one line in `run.log`.
@@ -154,6 +156,7 @@ The state lives in `<state-dir>`. Three views:
 - `<state-dir>/STATUS.md` and `<state-dir>/status.html`: the status board with all sections. The HTML file loads nothing from the internet.
 - Copy it to your laptop: `scp <ssh-target>:<state-dir>/status.html <local-dir>/`, then open it in your browser.
 - Watch a single strand: `ssh <ssh-target>`, then `tmux ls` and `tmux attach -t <project>-<short>`. Leave with `Ctrl-b` then `d`; do not close the session.
+- The tmux session of a strand stays open and idle after it reported DONE; nobody ends it automatically. Close it with `tmux kill-session -t <project>-<strand>` when it is no longer needed.
 
 Costs shown in the board are a list-price equivalent, not an invoice.
 

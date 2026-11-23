@@ -7,6 +7,9 @@ All notable changes to this project are documented in this file.
 ### Fixed
 - `sf-status deliver` watches the pane during its wait and accepts the first sighting of the pointer. Before, it looked once after 20 s and reported "did not arrive" (no `delivered` event) when a fast strand had already answered and scrolled the pointer out of view.
 
+### Changed
+- `docs/05-server-setup.md`: corrections from a dry run on a fresh server: non-interactive `adduser`, git identity of the work user, bare remote with `--initial-branch=main` and seeding `main` before protecting it, cron section as a check of what `/setup-workflow` wrote (manual `crontab -e` as fallback), `PATH` for the non-interactive ssh shell, closing idle strand sessions.
+
 ## [0.3.0]
 
 ### Added
