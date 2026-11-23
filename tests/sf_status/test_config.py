@@ -90,3 +90,16 @@ def test_config_without_home_raises_value_error(monkeypatch):
     monkeypatch.setattr(Path, "home", staticmethod(boom))
     with pytest.raises(ValueError):
         load_server_config()
+
+
+def test_local_notice_hours_default_and_validation(monkeypatch, tmp_path, capsys):
+    assert load_server_config(tmp_path).local_notice_hours == 8
+    write_cfg(tmp_path, {"server": {"local_notice_hours": 2}})
+    assert load_server_config(tmp_path).local_notice_hours == 2
+    for bad in (0, "x", True):
+        write_cfg(tmp_path, {"server": {"local_notice_hours": bad}})
+        assert load_server_config(tmp_path).local_notice_hours == 8
+    (tmp_path / ".claude" / "software-factory.json").unlink()
+    monkeypatch.setenv("HOME", str(tmp_path))
+    assert main(["config", "local_notice_hours"]) == 0
+    assert capsys.readouterr().out.strip() == "8"

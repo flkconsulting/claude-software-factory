@@ -105,3 +105,52 @@ def test_append_accepts_4000_bytes_rejects_4001(state):
     assert (state / "events" / "p.jsonl").stat().st_size == 4000
     with pytest.raises(ValueError):
         events.append(state, "p", _report("x" * (n + 1)))
+
+
+def _local_request(strand="a", id="a-l1", **kw):
+    return {"kind": "local_request", "strand": strand, "id": id, "step": "extension-install",
+            "branch": "feature/x", "commit": "abc1234", **kw}
+
+
+def test_local_request_roundtrip(state):
+    stored = events.append(state, "p", _local_request())
+    got, _ = events.read(state, "p")
+    assert got == [stored]
+    assert (got[0]["id"], got[0]["step"], got[0]["branch"], got[0]["commit"]) == (
+        "a-l1", "extension-install", "feature/x", "abc1234")
+
+
+@pytest.mark.parametrize("field,value", [
+    ("branch", "-x"), ("branch", "a;b"), ("branch", "a b"),
+    ("commit", "XYZ"), ("commit", "abc"), ("commit", "a" * 41),
+    ("step", "Bad Step"),
+])
+def test_local_request_rejects_hostile_values(state, field, value):
+    with pytest.raises(ValueError):
+        events.append(state, "p", _local_request(**{field: value}))
+    assert not (state / "events" / "p.jsonl").exists()
+
+
+def test_local_result_state_must_be_ok_or_failed(state):
+    def res(**kw):
+        return {"kind": "local_result", "strand": "a", "request_id": "a-l1", "state": "ok", "text": "t", **kw}
+    with pytest.raises(ValueError):
+        events.append(state, "p", res(state="maybe"))
+    with pytest.raises(ValueError):
+        events.append(state, "p", res(request_id="A l1"))
+    events.append(state, "p", res())
+    events.append(state, "p", res(state="failed"))
+
+
+def test_open_local_and_next_id(state):
+    events.append(state, "p", _local_request("a", "a-l1"))
+    events.append(state, "p", {"kind": "local_result", "strand": "a", "request_id": "a-l1",
+                               "state": "ok", "text": "fine"})
+    events.append(state, "p", _local_request("a", "a-l2"))
+    events.append(state, "p", _local_request("b", "b-l1"))
+    evs, _ = events.read(state, "p")
+    got = events.open_local(evs)
+    assert list(got) == ["a-l2", "b-l1"]
+    assert got["a-l2"]["kind"] == "local_request"
+    assert events.next_local_id(evs, "a") == "a-l3"
+    assert events.next_local_id(evs, "c") == "c-l1"

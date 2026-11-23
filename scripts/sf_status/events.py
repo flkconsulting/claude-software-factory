@@ -10,6 +10,9 @@ from pathlib import Path
 
 MAX_LINE = 4000  # bytes; one O_APPEND write per line puts every line at the end of the file, the limit keeps lines small
 ID_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
+BRANCH_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]*$")
+COMMIT_RE = re.compile(r"^[0-9a-f]{7,40}$")
+LOCAL_STATES = ("ok", "failed")
 STATES = ("running", "waiting", "blocked", "done")
 LEVELS = ("approval", "decision", "info", "warning")
 
@@ -23,11 +26,13 @@ SCHEMA: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
     "task_done": (("id",), ()),
     "notice": (("level", "title", "text"), ()),
     "stall": (("session", "minutes"), ()),
+    "local_request": (("id", "step", "branch", "commit"), ("note",)),
+    "local_result": (("request_id", "state", "text"), ()),
     "delivered": (("seq",), ()),
     "project_added": ((), ()),
     "project_removed": ((), ()),
 }
-ID_FIELDS = ("id", "question_id")
+ID_FIELDS = ("id", "question_id", "request_id")
 
 
 def valid_id(value) -> bool:
@@ -64,6 +69,15 @@ def _validate(project: str, event: dict) -> None:
         raise ValueError(f"invalid state: {event['state']!r}")
     if kind == "notice" and event["level"] not in LEVELS:
         raise ValueError(f"invalid level: {event['level']!r}")
+    if kind == "local_request":
+        if not valid_id(event["step"]):
+            raise ValueError(f"invalid step: {event['step']!r}")
+        if not (isinstance(event["branch"], str) and BRANCH_RE.match(event["branch"])):
+            raise ValueError(f"invalid branch: {event['branch']!r}")
+        if not (isinstance(event["commit"], str) and COMMIT_RE.match(event["commit"])):
+            raise ValueError(f"invalid commit: {event['commit']!r}")
+    if kind == "local_result" and event["state"] not in LOCAL_STATES:
+        raise ValueError(f"invalid local state: {event['state']!r}")
     progress = event.get("progress")
     if progress is not None and (
         not isinstance(progress, int) or isinstance(progress, bool) or not 0 <= progress <= 100
@@ -146,3 +160,19 @@ def open_questions(events: list[dict]) -> dict[str, dict]:
         elif e.get("kind") == "answer":
             asked.pop(e.get("question_id"), None)
     return asked
+
+
+def open_local(events: list[dict]) -> dict[str, dict]:
+    """Local step requests without a result, by request id, in file order."""
+    pending: dict[str, dict] = {}
+    for e in events:
+        if e.get("kind") == "local_request" and isinstance(e.get("id"), str):
+            pending[e["id"]] = e
+        elif e.get("kind") == "local_result":
+            pending.pop(e.get("request_id"), None)
+    return pending
+
+
+def next_local_id(events: list[dict], strand: str) -> str:
+    n = sum(1 for e in events if e.get("kind") == "local_request" and e.get("strand") == strand)
+    return f"{strand}-l{n + 1}"

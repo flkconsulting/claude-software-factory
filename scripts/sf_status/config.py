@@ -19,6 +19,7 @@ class ServerConfig:
     max_strands: int = 4
     safety_pass_hours: int = 3
     retry_limit: int = 3
+    local_notice_hours: int = 8
     usage_report: bool = True
     auto_compact_window: int = 200000
     state_dir: Path = Path(DEFAULT_STATE_DIR)
