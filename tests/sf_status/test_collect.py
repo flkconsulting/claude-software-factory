@@ -296,8 +296,21 @@ def _waiting_local(cfg, state, projects, fake, what):
 
 
 def test_waiting_for_local_not_stalled(cfg, state, projects, fake):
+    _local_request(state)
     _waiting_local(cfg, state, projects, fake, "local a-l1")
     assert of_kind(state, "stall") == []
+
+
+def test_waiting_for_local_without_request_is_stalled(cfg, state, projects, fake):
+    _waiting_local(cfg, state, projects, fake, "local a-l1")
+    assert len(of_kind(state, "stall")) == 1
+
+
+def test_waiting_for_local_after_result_is_stalled(cfg, state, projects, fake):
+    _local_request(state)
+    _local_result(state)
+    _waiting_local(cfg, state, projects, fake, "local a-l1")
+    assert len(of_kind(state, "stall")) == 1
 
 
 def test_waiting_for_localhost_still_stalled(cfg, state, projects, fake):

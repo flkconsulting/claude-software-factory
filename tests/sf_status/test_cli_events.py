@@ -4,7 +4,7 @@ import sys
 
 import pytest
 
-from sf_status import cli, effects, events, projects
+from sf_status import cli, effects, events, launch, projects
 
 
 @pytest.fixture
@@ -211,3 +211,13 @@ def test_local_result_text_from_stdin(env, remote, monkeypatch):
 def test_local_result_bad_state_exit_2(env):
     assert cli.main(["local", "result", "--project", "p", "--id", "a-l1",
                      "--state", "maybe", "x"]) == 2
+
+
+def test_deliver_text_from_stdin(env, monkeypatch):
+    seen = {}
+    monkeypatch.setattr(launch, "deliver", lambda cfg, project, strand, text, wait_s=20: seen.update(text=text) or 0)
+    monkeypatch.setattr(sys, "stdin", io.StringIO("Local step x ok: a; $(b) 'c'\n"))
+    assert cli.main(["deliver", "--project", "p", "--strand", "a", "-"]) == 0
+    assert seen["text"] == "Local step x ok: a; $(b) 'c'"
+    assert cli.main(["deliver", "--project", "p", "--strand", "a", "plain"]) == 0
+    assert seen["text"] == "plain"

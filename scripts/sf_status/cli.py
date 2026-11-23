@@ -412,7 +412,7 @@ def _run_launch(args) -> int:
 def _add_deliver(sub) -> None:
     p = sub.add_parser("deliver", help="append a follow-up to the start file and point the strand to it")
     _common(p)
-    _text(p)
+    p.add_argument("text", help="follow-up text; '-' reads it from stdin")
 
 
 def _run_deliver(args) -> int:
@@ -422,7 +422,8 @@ def _run_deliver(args) -> int:
     project = _project(args.project, Path(cfg.state_dir))
     if project is None:
         return 1
-    return launch.deliver(cfg, project, args.strand, args.text)
+    text = sys.stdin.read().rstrip("\n") if args.text == "-" else args.text
+    return launch.deliver(cfg, project, args.strand, text)
 
 
 def _add_local(sub) -> None:

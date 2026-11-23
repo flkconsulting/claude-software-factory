@@ -13,7 +13,7 @@
 set -u
 
 usage() {
-  echo "usage: local-watch.sh <ssh-target> <project>" >&2
+  echo "usage: local-watch.sh <ssh-target> <project> (SF_LOCAL_WATCH_INTERVAL > 0, SF_LOCAL_WATCH_MAX_SECONDS and SF_LOCAL_WATCH_SSH_TIMEOUT whole numbers > 0)" >&2
   exit 2
 }
 
@@ -32,6 +32,14 @@ ssh_cmd="${SF_LOCAL_WATCH_SSH:-ssh}"
 remote="${SF_LOCAL_WATCH_REMOTE:-sf-status}"
 
 ssh_timeout="${SF_LOCAL_WATCH_SSH_TIMEOUT:-90}"
+
+# positive numbers only; checked before any ssh call
+num='^([0-9]+\.?[0-9]*|\.[0-9]+)$'
+[[ $interval =~ $num ]] || usage
+[[ $interval =~ [1-9] ]] || usage
+whole='^[0-9]+$'
+[[ $max =~ $whole && $max =~ [1-9] ]] || usage
+[[ $ssh_timeout =~ $whole && $ssh_timeout =~ [1-9] ]] || usage
 
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/local-watch.XXXXXX")" || { echo "local-watch.sh: cannot create temp dir" >&2; exit 11; }
 pid=""
@@ -64,7 +72,8 @@ while true; do
   rc=$?
   pid=""
   if [ "$rc" -ne 0 ]; then
-    echo "local-watch.sh: ssh failed (exit $rc)" >&2
+    last="$(grep -v '^[[:space:]]*$' "$tmp/err" | tail -n 1)"
+    echo "local-watch.sh: ssh failed (exit $rc)${last:+: $last}" >&2
     exit 11
   fi
   out="$(cat "$tmp/out")"

@@ -4,6 +4,7 @@ Events are written before the markers that remember them. Strands are never rest
 """
 import json
 import os
+from collections.abc import Container
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -151,9 +152,11 @@ def _reset_stall(entry: dict) -> bool:
     return changed
 
 
-def _waits_for_local(rep: dict) -> bool:
-    """Waiting for a local step ("local <id>"); "localhost db" is not one."""
-    return str(rep.get("waiting_for", "")).lower().startswith("local ")
+def _waits_for_local(rep: dict, open_ids: Container[str]) -> bool:
+    """Waiting for a local step ("local <id>") whose request is still open; "localhost db" is not one,
+    and a refused or already answered request is measured like any other wait."""
+    waiting = str(rep.get("waiting_for", ""))
+    return waiting.lower().startswith("local ") and waiting[6:].strip() in open_ids
 
 
 def _obsolete(notice: dict, finished: dict[tuple[str, str], str],
@@ -252,7 +255,7 @@ def collect(cfg: ServerConfig, projects: list[Project], now: float,
         if rep.get("state") not in ("running", "waiting") or (
                 rep.get("state") == "waiting"
                 and (any(w in str(rep.get("waiting_for", "")).lower() for w in HUMAN_WAIT)
-                     or _waits_for_local(rep))):
+                     or _waits_for_local(rep, events.open_local(per_project[project])))):
             if _reset_stall(entry):
                 wrote = True
             continue

@@ -28,6 +28,7 @@ def fake(tmp_path):
             "  empty) exit 0 ;;\n"
             f"  line) echo '{LINE}'; exit 0 ;;\n"
             "  fail) exit 255 ;;\n"
+            "  nocmd) echo 'bash: sf-status: command not found' >&2; echo >&2; exit 127 ;;\n"
             "  hang) exec sleep 987 ;;\n"
             "esac\n",
             encoding="utf-8",
@@ -106,3 +107,29 @@ def test_hung_ssh_times_out_exit_11(fake, tmp_path):
     assert count(calls) == 1
     ps = subprocess.run(["ps", "-axo", "command"], capture_output=True, text=True).stdout
     assert "sleep 987" not in [l.strip() for l in ps.splitlines()]
+
+
+@pytest.mark.parametrize("name,value", [
+    ("SF_LOCAL_WATCH_INTERVAL", "abc"), ("SF_LOCAL_WATCH_INTERVAL", "0"), ("SF_LOCAL_WATCH_INTERVAL", "-1"),
+    ("SF_LOCAL_WATCH_INTERVAL", "1.2.3"),
+    ("SF_LOCAL_WATCH_MAX_SECONDS", "0"), ("SF_LOCAL_WATCH_MAX_SECONDS", "1.5"), ("SF_LOCAL_WATCH_MAX_SECONDS", "x"),
+    ("SF_LOCAL_WATCH_SSH_TIMEOUT", "0"), ("SF_LOCAL_WATCH_SSH_TIMEOUT", "2.5"), ("SF_LOCAL_WATCH_SSH_TIMEOUT", "-3"),
+])
+def test_bad_numbers_exit_2_without_ssh(fake, name, value):
+    e, calls = fake(["empty"], **{name: value})
+    r = run(["host", "alpha"], e)
+    assert r.returncode == 2
+    assert "usage" in r.stderr
+    assert count(calls) == 0
+
+
+def test_decimal_interval_accepted(fake):
+    e, _ = fake(["line"], SF_LOCAL_WATCH_INTERVAL="0.5")
+    assert run(["host", "alpha"], e).returncode == 10
+
+
+def test_ssh_failure_shows_last_stderr_line(fake):
+    e, _ = fake(["nocmd"])
+    r = run(["host", "alpha"], e)
+    assert r.returncode == 11
+    assert "ssh failed (exit 127): bash: sf-status: command not found" in r.stderr

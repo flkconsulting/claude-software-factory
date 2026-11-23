@@ -30,7 +30,7 @@ def git_config(folder: Path, key: str) -> str | None:
 def git_remote_head(folder: Path, branch: str) -> str | None:
     """Commit id of a branch on the remote origin; None if unreadable or missing."""
     r = _run(["git", "-C", str(folder), "ls-remote", "--heads", "origin", f"refs/heads/{branch}"],
-             timeout=30)
+             timeout=30, env={**os.environ, "GIT_TERMINAL_PROMPT": "0"})
     if not r or r.returncode != 0:
         return None
     lines = r.stdout.strip().splitlines()

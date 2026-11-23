@@ -20,3 +20,15 @@ def test_git_remote_head_parses_ls_remote(tmp_path):
                          capture_output=True, text=True).stdout.strip()
     assert effects.git_remote_head(work, "feature/x") == sha
     assert effects.git_remote_head(work, "nope") is None
+
+
+def test_git_remote_head_disables_prompts(tmp_path, monkeypatch):
+    seen = {}
+
+    def fake_run(args, timeout=10, env=None):
+        seen["env"] = env
+        return None
+
+    monkeypatch.setattr(effects, "_run", fake_run)
+    assert effects.git_remote_head(tmp_path, "x") is None
+    assert seen["env"]["GIT_TERMINAL_PROMPT"] == "0"

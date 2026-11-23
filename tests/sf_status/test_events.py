@@ -159,3 +159,13 @@ def test_open_local_and_next_id(state):
 
 def test_valid_id_rejects_trailing_newline():
     assert events.valid_id("a") and not events.valid_id("a\n")
+
+
+def test_open_local_ignores_malformed_result(state):
+    events.append(state, "p", _local_request("a", "a-l1"))
+    with open(events.events_file(state, "p"), "a", encoding="utf-8") as f:
+        f.write('{"kind": "local_result", "request_id": ["x"], "time": "2026-01-01T00:00:00Z"}\n')
+        f.write('{"kind": "answer", "question_id": {"a": 1}, "time": "2026-01-01T00:00:00Z"}\n')
+    evs, _ = events.read(state, "p")
+    assert list(events.open_local(evs)) == ["a-l1"]
+    assert events.open_questions(evs) == {}

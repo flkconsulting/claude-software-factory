@@ -158,7 +158,9 @@ def open_questions(events: list[dict]) -> dict[str, dict]:
         if e.get("kind") == "question" and isinstance(e.get("id"), str):
             asked[e["id"]] = e
         elif e.get("kind") == "answer":
-            asked.pop(e.get("question_id"), None)
+            qid = e.get("question_id")
+            if isinstance(qid, str):
+                asked.pop(qid, None)
     return asked
 
 
@@ -169,7 +171,9 @@ def open_local(events: list[dict]) -> dict[str, dict]:
         if e.get("kind") == "local_request" and isinstance(e.get("id"), str):
             pending[e["id"]] = e
         elif e.get("kind") == "local_result":
-            pending.pop(e.get("request_id"), None)
+            rid = e.get("request_id")
+            if isinstance(rid, str):
+                pending.pop(rid, None)
     return pending
 
 
