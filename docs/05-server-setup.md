@@ -120,7 +120,7 @@ If the server may not reach your normal remote, give it a bare repository that y
 The cron job is what makes the server work on its own. It starts `sf-status run` every three minutes under `flock`, so two runs never overlap.
 
 1. Open the editor with `crontab -e`.
-2. Add the lines of `<plugin-dir>/templates/server/crontab.txt` with `<home>` replaced by the absolute home folder of `<work-user>` (cron does not expand `~` or `$HOME` there). Add every folder from step 5.4 that is not yet on the `PATH` line (for example the folder of `claude`, if it is not `<home>/.local/bin`). Replace `<state-dir>` with your state folder (default `~/.claude/software-factory/server`, spelled out as an absolute path) and `<plugin-dir>` by the plugin folder.
+2. Add the lines of `<plugin-dir>/templates/server/crontab.txt` with `<home>` replaced by the absolute home folder of `<work-user>` (cron does not expand `~` or `$HOME` there). Add every folder from step 5.4 that is not yet on the `PATH` line (for example the folder of `claude`, if it is not `<home>/.local/bin`). Replace `<state-dir>` with your state folder (default `~/.claude/software-factory/server`, spelled out as an absolute path) and `<plugin-dir>` by the plugin folder. Keep the line `LANG=C.UTF-8`: without it, the tmux sessions that cron starts show umlauts and other non-ASCII characters as `_`.
 3. Save and check with `crontab -l`.
 4. After three minutes look at `<state-dir>/run.log` and `<state-dir>/STATUS.md`. A run that has nothing to report writes nothing to `run.log`: an empty log together with a fresh time stamp in `STATUS.md` (line "Generated") means the job works. A line "server mode disabled" means `server.enabled` is still not `true`.
 5. A cron run does not end with an error trace; a problem is one line in `run.log`.
@@ -144,7 +144,7 @@ Two things must both be on before the supervisor runs: the setting `server.super
 
 1. In `~/.claude/software-factory.json` set `"supervisor": true` in the section `server` (next to `"enabled": true`).
 2. There is no `project update`. Remove the project and add it again with the supervisor on and your approval quoted verbatim: `sf-status project remove <name>`, then `sf-status project add <name> --title <title> --folder <project-folder> --supervisor yes --approval-quote "<your quote>"`. The event file of the project stays and the wake offsets continue.
-3. While `server.supervisor` was off, triggers kept piling up in `<state-dir>/supervisor/triggers.json`, and approved rows of the wave plan count as new. If old approved rows or old events must not fire, run `sf-status wake fast-forward` before the next cron run: it sets the wake markers to now without raising triggers.
+3. While `server.supervisor` was off, triggers kept piling up in `<state-dir>/supervisor/triggers.json`, and approved rows of the wave plan count as new. If old approved rows or old events must not fire, run `sf-status wake fast-forward` before the next cron run: it sets the wake markers to now without raising triggers. Triggers that are already in `triggers.json` stay there and fire with the first supervisor run. Look at its list `open`. To drop the old triggers, delete the file before the next cron run: cron creates it again, and only the new triggers are in it. The list `parked` is lost as well.
 4. Check after the next cron run: `<state-dir>/run.log` shows "supervisor started" and `<state-dir>/supervisor/runs/` gets a file. The file `<state-dir>/supervisor/task.md` must exist (step 7.6) with `<state-dir>` filled in.
 
 ## Viewing the state

@@ -137,6 +137,7 @@ def test_watcher_has_shebang_and_set_e():
 def test_crontab_line():
     text = read("crontab.txt")
     assert text.startswith("PATH=")
+    assert "\nLANG=C.UTF-8\n" in text  # tmux started from cron otherwise draws non-ASCII as "_"
     assert ("*/3 * * * * flock -n <state-dir>/run.lock <plugin-dir>/scripts/bin/sf-status run "
             ">> <state-dir>/run.log 2>&1") in text
 

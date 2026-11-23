@@ -304,3 +304,37 @@ def test_supervisor_writes_stderr_line_to_run_log(env, monkeypatch):
     monkeypatch.setattr(effects, "run_claude", fake)
     assert supervisor.run_once(env.cfg, env.state, NOW) == "failed"
     assert "claude stderr: Not logged in" in (env.state / "run.log").read_text()
+
+
+def test_waits_for_triggers_lock_before_reading(env):
+    import threading
+    env.set([("done:a", 0)])
+    lock_path = env.state / "supervisor" / "triggers.lock"
+    with open(lock_path, "a+") as f:
+        fcntl.flock(f, fcntl.LOCK_EX)
+        worker = threading.Thread(target=supervisor.run_once, args=(env.cfg, env.state, NOW))
+        worker.start()
+        worker.join(0.3)
+        assert worker.is_alive() and env.calls == []  # blocked while cron adopts triggers
+    worker.join(5)
+    assert not worker.is_alive() and len(env.calls) == 1
+    assert env.triggers()["open"] == []
+
+
+def test_triggers_lock_free_during_claude_run(env, monkeypatch):
+    env.set([("done:a", 0)])
+    seen = []
+    original = effects.run_claude
+
+    def probe(*a, **kw):
+        with open(env.state / "supervisor" / "triggers.lock", "a+") as f:
+            try:
+                fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                seen.append("free")
+            except OSError:
+                seen.append("held")
+        return original(*a, **kw)
+
+    monkeypatch.setattr(effects, "run_claude", probe)
+    assert supervisor.run_once(env.cfg, env.state, NOW) == "ok"
+    assert seen == ["free"]  # cron can adopt new triggers while the supervisor works

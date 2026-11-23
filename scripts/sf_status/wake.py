@@ -13,6 +13,7 @@ from pathlib import Path
 from . import events
 from .config import ServerConfig
 from .projects import Project
+from .supervisor import triggers_lock
 from .wave_plan import parse_wave_plan
 
 READER = "wake"
@@ -126,19 +127,20 @@ def commit_triggers(state_dir: Path, triggers: Triggers, now: datetime | None = 
     """Adopt triggers into supervisor/triggers.json, then advance the marker. Raises OSError on failure."""
     state_dir = Path(state_dir)
     path = state_dir / "supervisor" / "triggers.json"
-    data = _load(path)
-    open_items = [i for i in data.get("open", []) if isinstance(i, dict) and "id" in i]
-    known = {i["id"] for i in open_items}
     when = now or datetime.now(timezone.utc)
     since = _stamp(when)
-    for trigger in triggers:
-        if trigger not in known:
-            open_items.append({"id": trigger, "since": since, "tries": 0})
-            known.add(trigger)
-    data["open"] = open_items
-    data.setdefault("parked", [])
-    data.setdefault("last_run", None)
-    _atomic(path, data)
+    with triggers_lock(state_dir):  # shared with the supervisor's writes
+        data = _load(path)
+        open_items = [i for i in data.get("open", []) if isinstance(i, dict) and "id" in i]
+        known = {i["id"] for i in open_items}
+        for trigger in triggers:
+            if trigger not in known:
+                open_items.append({"id": trigger, "since": since, "tries": 0})
+                known.add(trigger)
+        data["open"] = open_items
+        data.setdefault("parked", [])
+        data.setdefault("last_run", None)
+        _atomic(path, data)
     for project, short in triggers.notices:
         events.append(state_dir, project, {
             "kind": "notice", "strand": "server", "level": "warning", "title": "wave plan row skipped",

@@ -6,9 +6,9 @@ All notable changes to this project are documented in this file.
 
 ### Added
 - Stage 2, variant B (local plus server), additional and switchable off: without a `server` section or with `server.enabled` not `true`, nothing of it acts.
-- `sf-status` (`scripts/bin/sf-status`, package `scripts/sf_status/`): append-only event log, project registration with a gitleaks pre-push check, state collector with stall detection (reported once per stall), deterministic `STATUS.md` and escaped, self-contained `status.html`, usage and model report (list-price equivalent, not an invoice), wake triggers and wave plan parser (columns read by the header row; column `base` names the branch a strand's worktree starts from), one cron run, short supervisor run per trigger bundle with retry limit, strand launch in tmux and follow-up delivery, answers to questions.
+- `sf-status` (`scripts/bin/sf-status`, package `scripts/sf_status/`): append-only event log, project registration with a gitleaks pre-push check, state collector with stall detection (reported once per stall), deterministic `STATUS.md` and escaped, self-contained `status.html`, usage and model report (list-price equivalent, not an invoice), wake triggers and wave plan parser (columns read by the header row; column `base` names the branch a strand's worktree starts from), one cron run, short supervisor run per trigger bundle with retry limit (cron and supervisor change `triggers.json` only under a shared lock), strand launch in tmux and follow-up delivery, answers to questions.
 - `scripts/heavy-run.sh`: heavy-run limiter with `server.heavy_slots` slots.
-- `templates/server/`: supervisor task, wave plan, strand start file, watcher script, cron line and a best-effort deny list for `settings.json`.
+- `templates/server/`: supervisor task, wave plan, strand start file, watcher script, cron line (with `LANG=C.UTF-8`) and a best-effort deny list for `settings.json`.
 - Skill `delegate-work`: server mode and watcher.
 - `docs/05-server-setup.md`: server setup guide.
 - `/setup-workflow` variant B: checks `tmux`, `crontab`, `flock`, proposes the `server` settings, project registration, wave plan, supervisor task, cron line and permission additions (written only after consent).

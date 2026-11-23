@@ -156,3 +156,23 @@ def test_answer_to_supervisor_question_triggers(cfg, state, proj):
 def test_reserved_names_match_state_keys():
     from sf_status import projects
     assert set(projects.RESERVED_NAMES) == {k for k in wake.STATE_KEYS if projects.NAME_RE.match(k)}
+
+
+def test_commit_waits_for_triggers_lock(cfg, state, proj):
+    import fcntl
+    import threading
+    report(state, "alpha", "a", "done")
+    t = wake.collect_triggers(cfg, [proj], state, T0)
+    lock_path = state / "supervisor" / "triggers.lock"
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(lock_path, "a+") as f:
+        fcntl.flock(f, fcntl.LOCK_EX)
+        worker = threading.Thread(target=wake.commit_triggers, args=(state, t, T0))
+        worker.start()
+        worker.join(0.3)
+        assert worker.is_alive()  # blocked while the supervisor holds the triggers lock
+        assert not (state / "supervisor" / "triggers.json").exists()
+    worker.join(5)
+    assert not worker.is_alive()
+    data = json.loads((state / "supervisor" / "triggers.json").read_text())
+    assert "done:a" in [i["id"] for i in data["open"]]

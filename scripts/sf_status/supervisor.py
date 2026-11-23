@@ -1,8 +1,10 @@
 """Supervisor short run: one headless claude run per bundle of open triggers.
 
 Single instance through a non-blocking flock on supervisor/supervisor.lock (the kernel frees it when
-the process dies). The tries counter is raised before the run, so a crash cannot loop forever. Triggers
-leave the open list only on proven success: exit 0, no is_error, notes.md newer than before.
+the process dies). Every read-modify-write of triggers.json, here and in wake.commit_triggers, holds the
+blocking flock supervisor/triggers.lock, so a trigger adopted by cron is never overwritten; the lock is
+not held during the claude run. The tries counter is raised before the run, so a crash cannot loop
+forever. Triggers leave the open list only on proven success: exit 0, no is_error, notes.md newer than before.
 The prompt carries fixed words and trigger ids only, never free text from events.
 """
 import contextlib
@@ -61,6 +63,16 @@ def _mtime(path: Path) -> float:
         return path.stat().st_mtime
     except OSError:
         return 0.0
+
+
+@contextlib.contextmanager
+def triggers_lock(state_dir: Path):
+    """Exclusive, blocking lock for a read-modify-write of supervisor/triggers.json. Hold it briefly."""
+    path = Path(state_dir) / "supervisor" / "triggers.lock"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "a+") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        yield
 
 
 def _triggers(path: Path) -> dict:
@@ -125,20 +137,21 @@ def _locked(cfg: ServerConfig, state_dir: Path, base: Path, now: datetime) -> st
     if (base / "pause").exists():
         return "nothing"
     path = base / "triggers.json"
-    data = _triggers(path)
-    if not data["open"]:
-        return "nothing"
-    project = _supervisor_project(state_dir)
-    if project is None or not any(TRIGGER_RE.match(i["id"]) for i in data["open"]):
-        return "nothing"  # no real run possible: tries stay untouched, nothing is parked silently
-    aborted = any(i["tries"] > 0 for i in data["open"])  # an earlier run never proved success
-    gone = [i for i in data["open"] if i["tries"] >= cfg.retry_limit]  # retry_limit real runs are used up
-    data["open"] = [i for i in data["open"] if i["tries"] < cfg.retry_limit]
-    run_items = [i for i in data["open"] if TRIGGER_RE.match(i["id"])]
-    for i in run_items:
-        i["tries"] += 1
-    data["parked"] = data["parked"] + gone
-    _atomic(path, data)
+    with triggers_lock(state_dir):
+        data = _triggers(path)
+        if not data["open"]:
+            return "nothing"
+        project = _supervisor_project(state_dir)
+        if project is None or not any(TRIGGER_RE.match(i["id"]) for i in data["open"]):
+            return "nothing"  # no real run possible: tries stay untouched, nothing is parked silently
+        aborted = any(i["tries"] > 0 for i in data["open"])  # an earlier run never proved success
+        gone = [i for i in data["open"] if i["tries"] >= cfg.retry_limit]  # retry_limit real runs are used up
+        data["open"] = [i for i in data["open"] if i["tries"] < cfg.retry_limit]
+        run_items = [i for i in data["open"] if TRIGGER_RE.match(i["id"])]
+        for i in run_items:
+            i["tries"] += 1
+        data["parked"] = data["parked"] + gone
+        _atomic(path, data)
     if gone:
         _notice(state_dir, project.name, "supervisor triggers parked",
                 f"{len(gone)} trigger(s) parked after {cfg.retry_limit} tries; see supervisor/triggers.json.", now)
@@ -161,15 +174,16 @@ def _locked(cfg: ServerConfig, state_dir: Path, base: Path, now: datetime) -> st
     ok = not is_error and _mtime(notes_file) > before
     result = "ok" if ok else ("timeout" if code == 124 else "failed")
 
-    fresh = _triggers(path)  # triggers raised during the run stay
-    if ok:
-        fresh["open"] = [i for i in fresh["open"] if i["id"] not in run_ids]
-    elif not any(i["id"] == RETRY for i in fresh["open"]):
-        # retry inherits the tries of the failed bundle, so it is parked together with it
-        used = max(i["tries"] for i in run_items)
-        fresh["open"].append({"id": RETRY, "since": _stamp(end), "tries": used})
-    fresh["last_run"] = _stamp(now)
-    _atomic(path, fresh)
+    with triggers_lock(state_dir):
+        fresh = _triggers(path)  # triggers raised during the run stay
+        if ok:
+            fresh["open"] = [i for i in fresh["open"] if i["id"] not in run_ids]
+        elif not any(i["id"] == RETRY for i in fresh["open"]):
+            # retry inherits the tries of the failed bundle, so it is parked together with it
+            used = max(i["tries"] for i in run_items)
+            fresh["open"].append({"id": RETRY, "since": _stamp(end), "tries": used})
+        fresh["last_run"] = _stamp(now)
+        _atomic(path, fresh)
     if not ok:
         _notice(state_dir, project.name, "supervisor run failed",
                 "The supervisor run hit its time limit." if result == "timeout"
