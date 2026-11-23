@@ -44,6 +44,8 @@ jobs:
       - uses: actions/checkout@v4.2.2
         with:
           fetch-depth: 0
+          # The pull_request merge ref is a synthetic commit authored with the account's display name.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Notice for pull requests from forks
         if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
         run: |
