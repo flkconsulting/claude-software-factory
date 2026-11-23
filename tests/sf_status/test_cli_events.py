@@ -1,6 +1,10 @@
+import io
+import json
+import sys
+
 import pytest
 
-from sf_status import cli, events, projects
+from sf_status import cli, effects, events, projects
 
 
 @pytest.fixture
@@ -93,3 +97,117 @@ def test_emit_rejects_server_strand(env, capsys):
     argv = ["report", "--project", "p", "--strand", "server", "--state", "working", "hi"]
     assert cli.main(argv) == 2
     assert "'server' is reserved" in capsys.readouterr().err
+
+
+COMMIT = "abc1234"
+HEAD = COMMIT + "0" * 33
+
+
+def _lreq(strand="a", commit=COMMIT, step="build", branch="feature/x"):
+    return ["local", "request", "--project", "p", "--strand", strand, "--step", step,
+            "--branch", branch, "--commit", commit]
+
+
+@pytest.fixture
+def remote(monkeypatch):
+    monkeypatch.setattr(effects, "git_remote_head", lambda folder, branch: HEAD)
+
+
+def _kinds(env):
+    got, _ = events.read(env, "p")
+    return [e["kind"] for e in got]
+
+
+def test_local_request_prints_id_and_writes_event(env, remote, capsys):
+    assert cli.main(_lreq()) == 0
+    assert capsys.readouterr().out.strip() == "a-l1"
+    got, _ = events.read(env, "p")
+    ev = [e for e in got if e["kind"] == "local_request"][0]
+    assert (ev["step"], ev["branch"], ev["commit"]) == ("build", "feature/x", COMMIT)
+
+
+@pytest.mark.parametrize("head", ["f" * 40, None])
+def test_local_request_refuses_commit_not_on_remote(env, monkeypatch, capsys, head):
+    monkeypatch.setattr(effects, "git_remote_head", lambda folder, branch: head)
+    assert cli.main(_lreq()) == 1
+    assert "feature/x" in capsys.readouterr().err
+    assert "local_request" not in _kinds(env)
+
+
+def test_local_request_second_open_refused(env, remote):
+    assert cli.main(_lreq()) == 0
+    assert cli.main(_lreq()) == 1
+    assert _kinds(env).count("local_request") == 1
+
+
+def test_local_request_after_failed_gets_l2(env, remote, capsys):
+    cli.main(_lreq())
+    assert cli.main(["local", "result", "--project", "p", "--id", "a-l1",
+                     "--state", "failed", "boom"]) == 0
+    capsys.readouterr()
+    assert cli.main(_lreq()) == 0
+    assert capsys.readouterr().out.strip() == "a-l2"
+
+
+def test_local_request_rejects_reserved_strand(env, remote):
+    assert cli.main(_lreq(strand="server")) == 2
+
+
+def test_local_request_bad_commit_exit_2(env, remote, capsys):
+    assert cli.main(_lreq(commit="x;y")) == 2
+    assert "sf-status:" in capsys.readouterr().err
+
+
+def test_local_pending_lists_open_oldest_first(env, remote, capsys):
+    assert cli.main(["local", "pending", "--project", "p"]) == 0
+    assert capsys.readouterr().out == ""
+    cli.main(_lreq(strand="a"))
+    cli.main(_lreq(strand="b", step="test"))
+    cli.main(_lreq(strand="c"))
+    cli.main(["local", "result", "--project", "p", "--id", "c-l1", "--state", "ok", "x"])
+    capsys.readouterr()
+    assert cli.main(["local", "pending", "--project", "p"]) == 0
+    rows = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    assert [r["id"] for r in rows] == ["a-l1", "b-l1"]
+    assert rows[1]["strand"] == "b" and rows[1]["step"] == "test"
+    assert {"branch", "commit", "time"} <= set(rows[0])
+
+
+def test_local_pending_unregistered_exit_1(env):
+    assert cli.main(["local", "pending", "--project", "nope"]) == 1
+
+
+def test_local_result_unknown_id_exit_1(env):
+    assert cli.main(["local", "result", "--project", "p", "--id", "a-l9",
+                     "--state", "ok", "x"]) == 1
+
+
+def test_local_result_twice_exit_1(env, remote):
+    cli.main(_lreq())
+    argv = ["local", "result", "--project", "p", "--id", "a-l1", "--state", "ok", "x"]
+    assert cli.main(argv) == 0
+    assert cli.main(argv) == 1
+    assert _kinds(env).count("local_result") == 1
+
+
+def test_local_result_ok_writes_strand_of_request(env, remote):
+    cli.main(_lreq())
+    assert cli.main(["local", "result", "--project", "p", "--id", "a-l1",
+                     "--state", "ok", "all green"]) == 0
+    got, _ = events.read(env, "p")
+    ev = [e for e in got if e["kind"] == "local_result"][0]
+    assert (ev["strand"], ev["request_id"], ev["state"], ev["text"]) == ("a", "a-l1", "ok", "all green")
+
+
+def test_local_result_text_from_stdin(env, remote, monkeypatch):
+    cli.main(_lreq())
+    monkeypatch.setattr(sys, "stdin", io.StringIO("Build 42 ok\n"))
+    assert cli.main(["local", "result", "--project", "p", "--id", "a-l1",
+                     "--state", "ok", "-"]) == 0
+    got, _ = events.read(env, "p")
+    assert [e for e in got if e["kind"] == "local_result"][0]["text"] == "Build 42 ok"
+
+
+def test_local_result_bad_state_exit_2(env):
+    assert cli.main(["local", "result", "--project", "p", "--id", "a-l1",
+                     "--state", "maybe", "x"]) == 2

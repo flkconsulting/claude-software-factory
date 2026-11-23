@@ -27,6 +27,16 @@ def git_config(folder: Path, key: str) -> str | None:
     return out or None
 
 
+def git_remote_head(folder: Path, branch: str) -> str | None:
+    """Commit id of a branch on the remote origin; None if unreadable or missing."""
+    r = _run(["git", "-C", str(folder), "ls-remote", "--heads", "origin", f"refs/heads/{branch}"],
+             timeout=30)
+    if not r or r.returncode != 0:
+        return None
+    lines = r.stdout.strip().splitlines()
+    return lines[0].split()[0] if lines and lines[0].split() else None
+
+
 def tmux_sessions() -> list[tuple[str, str]]:
     """(session name, current path of its first pane); empty if tmux is missing or has no server."""
     r = _run(["tmux", "list-panes", "-a", "-F", "#{session_name}|#{pane_current_path}"])

@@ -425,6 +425,88 @@ def _run_deliver(args) -> int:
     return launch.deliver(cfg, project, args.strand, args.text)
 
 
+def _add_local(sub) -> None:
+    p = sub.add_parser("local", help="request or report steps that run on the laptop")
+    ls = p.add_subparsers(dest="local_command", required=True)
+    r = ls.add_parser("request", help="ask for a local step; prints the request id")
+    _common(r)
+    r.add_argument("--step", required=True)
+    r.add_argument("--branch", required=True)
+    r.add_argument("--commit", required=True)
+    r.add_argument("--note")
+    pe = ls.add_parser("pending", help="print open local requests as JSON lines")
+    _common(pe, strand_required=False)
+    re_ = ls.add_parser("result", help="record the result of a local step")
+    _common(re_, strand_required=False)
+    re_.add_argument("--id", required=True)
+    re_.add_argument("--state", required=True, choices=events.LOCAL_STATES)
+    re_.add_argument("text", help="result text; '-' reads it from stdin")
+
+
+def _local_history(args) -> tuple[ServerConfig, list[dict]] | int:
+    cfg = _config()
+    if cfg is None:
+        return 1
+    if not _registered(cfg.state_dir, args.project):
+        return 1
+    try:
+        history, _ = events.read(cfg.state_dir, args.project)
+    except ValueError as e:
+        print(f"sf-status: {e}", file=sys.stderr)
+        return 2
+    return cfg, history
+
+
+def _run_local(args) -> int:
+    got = _local_history(args)
+    if isinstance(got, int):
+        return got
+    cfg, history = got
+    open_requests = events.open_local(history)
+    if args.local_command == "pending":
+        for e in open_requests.values():
+            row = {k: e[k] for k in ("id", "strand", "step", "branch", "commit", "time") if k in e}
+            if e.get("note"):
+                row["note"] = e["note"]
+            print(json.dumps(row, ensure_ascii=False))
+        return 0
+    if args.local_command == "result":
+        request = open_requests.get(args.id)
+        if request is None:
+            print(f"sf-status: no open local request {args.id!r} in project {args.project!r}",
+                  file=sys.stderr)
+            return 1
+        text = sys.stdin.read().rstrip("\n") if args.text == "-" else args.text
+        ev = {"kind": "local_result", "strand": request["strand"], "request_id": args.id,
+              "state": args.state, "text": text}
+        return _finish(_emit(args, ev, reserved_check=False))
+    mine = [e for e in open_requests.values() if e.get("strand") == args.strand]
+    if mine:
+        print(f"sf-status: strand {args.strand!r} already has an open local request {mine[0]['id']!r}",
+              file=sys.stderr)
+        return 1
+    ev = {"kind": "local_request", "strand": args.strand, "id": events.next_local_id(history, args.strand),
+          "step": args.step, "branch": args.branch, "commit": args.commit}
+    if args.note:
+        ev["note"] = args.note
+    try:
+        events._validate(args.project, {**ev, "time": "1970-01-01T00:00:00Z"})
+    except ValueError as e:
+        print(f"sf-status: {e}", file=sys.stderr)
+        return 2
+    project = _project(args.project, cfg.state_dir)
+    head = effects.git_remote_head(Path(project.folder), args.branch) if project else None
+    if not head or not head.startswith(args.commit):
+        print(f"sf-status: commit {args.commit!r} is not the head of origin/{args.branch}; "
+              "push it first", file=sys.stderr)
+        return 1
+    result = _emit(args, ev)
+    if isinstance(result, int):
+        return result
+    print(ev["id"])
+    return 0
+
+
 # name -> (function adding the subparser, function running it with parsed args)
 # Later tasks append their own entries here.
 COMMANDS: dict[str, tuple[Callable, Callable[[argparse.Namespace], int]]] = {
@@ -441,6 +523,7 @@ COMMANDS: dict[str, tuple[Callable, Callable[[argparse.Namespace], int]]] = {
     "supervise": (_add_supervise, _run_supervise),
     "launch": (_add_launch, _run_launch),
     "deliver": (_add_deliver, _run_deliver),
+    "local": (_add_local, _run_local),
 }
 
 
