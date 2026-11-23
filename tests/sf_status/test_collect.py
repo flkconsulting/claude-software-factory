@@ -285,3 +285,83 @@ def test_collect_survives_usage_error(cfg, state, projects, fake, monkeypatch):
     report(state, "a")
     s = collect.collect(replace(cfg, usage_report=True), projects, NOW)
     assert s.usage is None and "alpha/a" in s.strands
+
+
+def _waiting_local(cfg, state, projects, fake, what):
+    report(state, "a", st="waiting", waiting_for=what)
+    fake.sessions = [("alpha-a", projects[0].folder + "-a")]
+    fake.panes = {"alpha-a": "same\n"}
+    collect.collect(cfg, projects, NOW)
+    collect.collect(cfg, projects, NOW + 3 * LIMIT)
+
+
+def test_waiting_for_local_not_stalled(cfg, state, projects, fake):
+    _waiting_local(cfg, state, projects, fake, "local a-l1")
+    assert of_kind(state, "stall") == []
+
+
+def test_waiting_for_localhost_still_stalled(cfg, state, projects, fake):
+    _waiting_local(cfg, state, projects, fake, "localhost db")
+    assert len(of_kind(state, "stall")) == 1
+
+
+def _local_request(state, rid="a-l1", strand="a", at=NOW):
+    events.append(state, "alpha", {"kind": "local_request", "strand": strand, "id": rid, "step": "build",
+                                   "branch": "feature/x", "commit": "abc1234"}, _at(at))
+
+
+def _local_result(state, rid="a-l1", st="ok", text="fine", strand="a", at=NOW):
+    events.append(state, "alpha", {"kind": "local_result", "strand": strand, "request_id": rid,
+                                   "state": st, "text": text}, _at(at))
+
+
+def _local_notices(state):
+    return [n for n in of_kind(state, "notice") if n["title"].startswith("local step ")]
+
+
+def test_local_notice_once_after_hours(cfg, state, projects, fake):
+    _local_request(state)
+    collect.collect(cfg, projects, NOW + 7 * 3600)
+    assert _local_notices(state) == []
+    collect.collect(cfg, projects, NOW + 9 * 3600)
+    notes = _local_notices(state)
+    assert len(notes) == 1 and notes[0]["level"] == "warning" and "a-l1" in notes[0]["title"]
+    assert notes[0]["strand"] == "a"
+    collect.collect(cfg, projects, NOW + 20 * 3600)
+    assert len(_local_notices(state)) == 1
+
+
+def test_local_notice_respects_config(cfg, state, projects, fake):
+    import dataclasses
+    _local_request(state)
+    collect.collect(dataclasses.replace(cfg, local_notice_hours=1), projects, NOW + 2 * 3600)
+    assert len(_local_notices(state)) == 1
+
+
+def test_local_notice_hidden_after_result(cfg, state, projects, fake):
+    _local_request(state)
+    s = collect.collect(cfg, projects, NOW + 9 * 3600)
+    assert "local step a-l1 waiting" in _visible_titles(s)
+    _local_result(state, at=NOW + 9 * 3600 + 30)
+    s = collect.collect(cfg, projects, NOW + 9 * 3600 + 60)
+    assert "local step a-l1 waiting" not in _visible_titles(s)
+    assert len(_local_notices(state)) == 1  # log untouched
+
+
+def test_local_notice_not_for_answered_request(cfg, state, projects, fake):
+    _local_request(state)
+    _local_result(state, at=NOW + 60)
+    s = collect.collect(cfg, projects, NOW + 20 * 3600)
+    assert _local_notices(state) == [] and s.local == []
+
+
+def test_state_local_lists_open_with_last_result(cfg, state, projects, fake):
+    _local_request(state)
+    _local_result(state, st="failed", text="boom", at=NOW + 60)
+    _local_request(state, rid="a-l2", at=NOW + 120)
+    s = collect.collect(cfg, projects, NOW + 180)
+    assert len(s.local) == 1
+    e = s.local[0]
+    assert e["id"] == "a-l2" and e["last_result"] == "failed: boom" and e["project"] == "alpha"
+    assert e["strand"] == "a" and e["step"] == "build" and e["branch"] == "feature/x"
+    assert e["commit"] == "abc1234" and e["since"]

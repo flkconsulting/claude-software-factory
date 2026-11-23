@@ -176,3 +176,14 @@ def test_commit_waits_for_triggers_lock(cfg, state, proj):
     assert not worker.is_alive()
     data = json.loads((state / "supervisor" / "triggers.json").read_text())
     assert "done:a" in [i["id"] for i in data["open"]]
+
+
+def test_local_result_trigger(cfg, state, proj):
+    events.append(state, "alpha", {"kind": "local_result", "strand": "a", "request_id": "a-l1",
+                                   "state": "ok", "text": "built"}, T0)
+    assert "local:a-l1" in run(cfg, [proj], state, T0)
+    assert "local:a-l1" not in run(cfg, [proj], state, T0 + timedelta(minutes=5))
+    off = Project(name="beta", title="Beta", folder=proj.folder, supervisor=False)
+    events.append(state, "beta", {"kind": "local_result", "strand": "a", "request_id": "a-l1",
+                                  "state": "ok", "text": "built"}, T0)
+    assert [t for t in run(cfg, [off], state, T0) if t.startswith("local:")] == []

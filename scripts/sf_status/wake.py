@@ -89,12 +89,14 @@ def collect_triggers(cfg: ServerConfig, projects: list[Project], state_dir: Path
             continue
         for e in evs:
             strand, kind = e.get("strand"), e.get("kind")
-            if strand == "supervisor" and kind != "answer":  # answers to its questions are written by the human
+            if strand == "supervisor" and kind not in ("answer", "local_result"):  # written by the human / the laptop
                 continue
             if kind == "report" and e.get("state") in DEBOUNCED_STATES and events.valid_id(strand):
                 add(f"{e['state']}:{strand}", True)
             elif kind == "answer" and events.valid_id(e.get("question_id")):
                 add(f"answer:{e['question_id']}", False)
+            elif kind == "local_result" and events.valid_id(e.get("request_id")):
+                add(f"local:{e['request_id']}", False)
             elif kind == "stall" and events.valid_id(strand):
                 add(f"stall:{strand}", True)
         approved = _approved_rows(project)

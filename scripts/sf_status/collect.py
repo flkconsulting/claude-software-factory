@@ -22,6 +22,7 @@ SUPERVISOR_STRAND = "supervisor"  # runs without a tmux session
 STALL_TITLE = ": possibly stalled"
 GONE_TITLE = ": tmux session missing"
 FINISHED = ("done", "blocked")
+LOCAL_TITLE = ("local step ", " waiting")  # around the request id
 PRICES_FILE = Path(__file__).with_name("prices.json")
 
 
@@ -46,6 +47,7 @@ class State:
     usage: dict | None = None
     recent: list[dict] = field(default_factory=list)
     triggers: dict | None = None  # supervisor/triggers.json content, filled by render.write
+    local: list[dict] = field(default_factory=list)  # open local step requests, oldest first
 
 
 def _load_json(path: Path) -> dict:
@@ -149,8 +151,19 @@ def _reset_stall(entry: dict) -> bool:
     return changed
 
 
-def _obsolete(notice: dict, finished: dict[tuple[str, str], str]) -> bool:
-    """A stall or missing-session notice of a strand that reported done or blocked after it."""
+def _waits_for_local(rep: dict) -> bool:
+    """Waiting for a local step ("local <id>"); "localhost db" is not one."""
+    return str(rep.get("waiting_for", "")).lower().startswith("local ")
+
+
+def _obsolete(notice: dict, finished: dict[tuple[str, str], str],
+              answered: frozenset[tuple[str, str]] = frozenset()) -> bool:
+    """A stall or missing-session notice of a strand that reported done or blocked after it,
+    or a local step notice whose request has a result."""
+    title = str(notice.get("title", ""))
+    if title.startswith(LOCAL_TITLE[0]) and title.endswith(LOCAL_TITLE[1]):
+        rid = title[len(LOCAL_TITLE[0]):-len(LOCAL_TITLE[1])]
+        return (str(notice.get("project", "")), rid) in answered
     strand = notice.get("strand")
     if not isinstance(strand, str) or notice.get("title") not in (strand + STALL_TITLE, strand + GONE_TITLE):
         return False
@@ -238,7 +251,8 @@ def collect(cfg: ServerConfig, projects: list[Project], now: float,
         entry["gone"] = False
         if rep.get("state") not in ("running", "waiting") or (
                 rep.get("state") == "waiting"
-                and any(w in str(rep.get("waiting_for", "")).lower() for w in HUMAN_WAIT)):
+                and (any(w in str(rep.get("waiting_for", "")).lower() for w in HUMAN_WAIT)
+                     or _waits_for_local(rep))):
             if _reset_stall(entry):
                 wrote = True
             continue
@@ -276,12 +290,33 @@ def collect(cfg: ServerConfig, projects: list[Project], now: float,
     if wrote:
         _save_json(marker_path, marker)
 
+    # a local step request that stays open too long gets one warning notice
+    local_path = state_dir / "markers" / "local.json"
+    stored_noticed = _load_json(local_path).get("noticed")
+    noticed = {x for x in stored_noticed if isinstance(x, str)} if isinstance(stored_noticed, list) else set()
+    kept: set[str] = set()
+    for p in projects:
+        for rid, req in events.open_local(load_events(p.name)).items():
+            key = f"{p.name}/{rid}"
+            if key in noticed:
+                kept.add(key)
+            elif str(req.get("time", "9")) <= _iso(now - cfg.local_notice_hours * 3600):
+                write(p.name, {"kind": "notice", "strand": req.get("strand", SYSTEM_STRAND), "level": "warning",
+                               "title": f"{LOCAL_TITLE[0]}{rid}{LOCAL_TITLE[1]}",
+                               "text": f"{rid}: no local result after {cfg.local_notice_hours} h. "
+                                       "Is the local machine running the watcher?"})
+                kept.add(key)
+    if kept != noticed:
+        _save_json(local_path, {"noticed": sorted(kept)})
+
     # build the view from the events as they are now
     all_events: list[dict] = []
     result = State()
     cutoff = _iso(now - NOTICE_DAYS * 86400)
     open_q: list[dict] = []
     tasks: dict[tuple[str, str], dict] = {}
+    local: list[dict] = []
+    answered: set[tuple[str, str]] = set()
     for p in projects:
         evs = load_events(p.name)
         all_events.extend(evs)
@@ -294,6 +329,16 @@ def collect(cfg: ServerConfig, projects: list[Project], now: float,
             elif e.get("kind") == "task_done":
                 tasks.pop((p.name, e.get("id")), None)
         open_q.extend(events.open_questions(evs).values())
+        last_result: dict[str, str] = {}
+        for e in evs:
+            if e.get("kind") == "local_result":
+                last_result[str(e.get("strand", ""))] = f"{e.get('state')}: {e.get('text', '')}"
+                answered.add((p.name, str(e.get("request_id", ""))))
+        for rid, req in events.open_local(evs).items():
+            local.append({"project": p.name, "id": rid, "strand": req.get("strand", ""),
+                          "step": req.get("step", ""), "branch": req.get("branch", ""),
+                          "commit": req.get("commit", ""), "since": req.get("time", ""),
+                          "last_result": last_result.get(str(req.get("strand", "")), "")})
         for strand, reps in by_strand.items():
             view = _strand_view(p.name, strand, reps)
             m = marker.get(f"{p.name}-{strand}", {})
@@ -302,10 +347,11 @@ def collect(cfg: ServerConfig, projects: list[Project], now: float,
     all_events = _sorted(all_events)
     result.questions = _sorted(open_q)
     result.tasks = _sorted(list(tasks.values()))
+    result.local = sorted(local, key=lambda r: str(r["since"]))
     finished = {(str(e.get("project", "")), e["strand"]): str(e.get("time", "")) for e in all_events
                 if e.get("kind") == "report" and e.get("state") in FINISHED and isinstance(e.get("strand"), str)}
     result.notices = [e for e in all_events if e.get("kind") == "notice" and str(e.get("time", "")) >= cutoff
-                      and not _obsolete(e, finished)][-MAX_NOTICES:]
+                      and not _obsolete(e, finished, frozenset(answered))][-MAX_NOTICES:]
     result.recent = all_events[-MAX_RECENT:]
     result.runs = _runs(state_dir)
     if cfg.usage_report:
