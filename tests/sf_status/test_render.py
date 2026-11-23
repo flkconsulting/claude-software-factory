@@ -26,7 +26,7 @@ def make_state(**kw):
 def test_sections_in_order():
     md = render.render_markdown(make_state(usage={"day": "2026-11-22"}), NOW)
     heads = [h for h in re.findall(r"^## (.+)$", md, re.M)]
-    assert heads == ["Needs you", "Strands", "Stalls", "Supervisor", "Usage", "Recent events"]
+    assert heads == ["Needs you", "Waiting for local step", "Strands", "Stalls", "Supervisor", "Usage", "Recent events"]
 
 
 def test_answer_line_present():
@@ -185,3 +185,45 @@ def test_ctrl_strips_c1_and_bidi():
         for ch in ("\x85", "\u202e", "\u2066", "\u2069", "\x9f"):
             assert ch not in md
         assert "abcdef" in md
+
+
+LOCAL = {"project": "alpha", "id": "s1-l1", "strand": "s1", "step": "build-ext", "branch": "feature/x",
+         "commit": "0123456789abcdef0123456789abcdef01234567", "since": "2026-11-22T11:00:00Z",
+         "last_result": "failed: boom"}
+
+
+def test_local_section_table():
+    s = make_state(local=[dict(LOCAL)])
+    md = render.render_markdown(s, NOW)
+    row = [ln for ln in md.splitlines() if ln.startswith("| alpha | s1-l1")]
+    assert len(row) == 1
+    assert "| s1 | build-ext | feature/x | 0123456789ab | 2026-11-22T11:00:00Z | failed: boom |" in row[0]
+    assert "0123456789abc" not in row[0]
+    html = render.render_html(s, NOW)
+    assert "<td>s1-l1</td>" in html and "<td>0123456789ab</td>" in html and "<td>build-ext</td>" in html
+    assert "<td>failed: boom</td>" in html
+
+
+def test_local_section_empty_says_none():
+    md = render.render_markdown(make_state(local=[]), NOW)
+    sec = md.split("## Waiting for local step")[1].split("## ")[0]
+    assert "None." in sec
+
+
+def test_local_section_escapes_free_text():
+    e = dict(LOCAL, last_result="failed: a|b\nc\r\nd <script>x</script> \x1b[31mred\x1b[0m")
+    s = make_state(local=[e])
+    md = render.render_markdown(s, NOW)
+    row = [ln for ln in md.splitlines() if ln.startswith("| alpha | s1-l1")]
+    assert len(row) == 1
+    assert "a\\|b c d" in row[0]
+    assert "\x1b" not in md
+    html = render.render_html(s, NOW)
+    assert "<script" not in html and "&lt;script&gt;" in html and "\x1b" not in html
+
+
+def test_recent_shows_local_request_step():
+    s = make_state()
+    s.recent = [{"time": "2026-11-22T10:00:00Z", "project": "alpha", "strand": "s1",
+                 "kind": "local_request", "step": "build-ext"}]
+    assert "build-ext" in render.render_markdown(s, NOW)

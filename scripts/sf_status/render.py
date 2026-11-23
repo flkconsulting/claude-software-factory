@@ -108,6 +108,17 @@ def _strands(state: State) -> list:
     return [("table", ["project", "strand", "state", "since", "branch", "last message"], rows)]
 
 
+def _local(state: State) -> list:
+    rows = [[_cell(_get(e, "project")), _cell(_get(e, "id")), _cell(_get(e, "strand")),
+             _cell(_get(e, "step")), _cell(_get(e, "branch")), _cell(str(e.get("commit") or "")[:12]),
+             _cell(_get(e, "since")), _cell(e.get("last_result") or "")]
+            for e in _dicts(state.local)]
+    if not rows:
+        return [("p", "None.")]
+    return [("table", ["project", "id", "strand", "step", "branch", "commit", "waiting since", "last result"],
+             rows)]
+
+
 def _stalls(state: State) -> list:
     out = [("li", f"{_line(k, 160)}: {_line(v.state, 40)} since {_line(v.since, 40)}")
            for k, v in sorted(state.strands.items()) if v.stalled]
@@ -177,7 +188,7 @@ def _usage(usage: dict) -> list:
 
 def _recent(state: State) -> list:
     rows = [[_cell(_get(e, "time")), _cell(_get(e, "project")), _cell(_get(e, "strand")),
-             _cell(_get(e, "kind")), _cell(e.get("text") or e.get("title") or e.get("question") or "")]
+             _cell(_get(e, "kind")), _cell(e.get("text") or e.get("title") or e.get("question") or e.get("step") or "")]
             for e in _dicts(state.recent)]
     if not rows:
         return [("p", "None.")]
@@ -185,7 +196,8 @@ def _recent(state: State) -> list:
 
 
 def _sections(state: State) -> list[tuple[str, list]]:
-    secs = [("Needs you", _needs_you(state)), ("Strands", _strands(state)), ("Stalls", _stalls(state)),
+    secs = [("Needs you", _needs_you(state)), ("Waiting for local step", _local(state)),
+            ("Strands", _strands(state)), ("Stalls", _stalls(state)),
             ("Supervisor", _supervisor(state))]
     if isinstance(state.usage, dict):
         secs.append(("Usage", _usage(state.usage)))
