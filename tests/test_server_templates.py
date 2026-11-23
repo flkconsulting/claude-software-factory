@@ -168,3 +168,8 @@ def test_supervisor_task_model_worktree_and_answers():
 def test_deny_list_covers_no_verify():
     deny = json.loads(read("settings.json"))["permissions"]["deny"]
     assert "Bash(git push *--no-verify*)" in deny and "Bash(git commit *--no-verify*)" in deny
+
+
+def test_settings_lists_state_dir_as_additional_directory():
+    data = json.loads(read("settings.json"))
+    assert "<state-dir>" in data["permissions"]["additionalDirectories"]

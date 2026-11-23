@@ -25,6 +25,6 @@ Strand `<short>` of project `<project>`. Keep this file short; reference instead
   `sf-status report --project <project> --strand <short> --state running|waiting|blocked|done [--progress <0-100>] [--branch <branch>] "<one line>"`
 - A question: `sf-status question --project <project> --strand <short> --nr <n> --background "<...>" --recommendation "<...>" "<one sentence>"`, then
   `sf-status report --project <project> --strand <short> --state waiting --waiting-for "human <short>-<n>" "waiting for answer"`.
-  Carry on with what does not depend on the answer.
+  The answer arrives as a numbered follow-up at the end of this file, delivered by the supervisor, or by the human with `sf-status deliver` when the supervisor is off. Do not read or poll the event file for answers. Until the follow-up arrives, carry on with what does not depend on it.
 - Heavy runs (full test run, build, end-to-end) only as `<plugin-dir>/scripts/heavy-run.sh <command>`.
 - Follow-ups arrive as numbered items at the end of this file; read them when pointed to.
