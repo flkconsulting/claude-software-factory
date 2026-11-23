@@ -186,3 +186,54 @@ You can stop the server layer at any time; variant A and the hooks keep working.
 - **No root.** The work user has no `sudo`. Packages are installed by you, as admin, outside the session.
 - **No automatic restart.** A stalled strand is reported exactly once; nothing restarts it for you.
 - **Confidential data.** Keep customer data off the server; use test data.
+
+## Evidence from the acceptance run
+
+The guide was followed on a fresh server (Ubuntu 24.04, x86, 4 vCPU, 8 GB) with a small sample application for time tracking: two strands on Sonnet, strand B starting after strand A, a question from B to the human, and an artificial stall. Every deviation from this guide was fixed in it. Excerpts, shortened:
+
+Wave plan rows (approval quotes shortened):
+
+```text
+| a | Master data ...   | yes - "<quote>" | now                                      | feature/a | ...
+| b | Time tracking ... | yes - "<quote>" | after report .../a.md starts with A DONE | feature/b | ...
+```
+
+`run.log` after the supervisor was switched on:
+
+```text
+<time> supervisor started, 3 triggers open      (approved:a, approved:b, safety)
+<time> supervise: ok                            (a launched; b not, "A DONE" missing)
+<time> supervisor started, 2 triggers open      (done:a, answer:supervisor-1; b launched)
+<time> supervisor started, 1 triggers open      (stall:probe; only noted)
+<time> supervisor started, 2 triggers open      (answer:b-1, done:b)
+```
+
+Event lines (shortened):
+
+```text
+{"kind": "stall", "minutes": 6, "strand": "probe", ...}
+{"kind": "question", "id": "b-1", "strand": "b", "question": "When a booking would exceed the remaining budget ...", "recommendation": "Refuse ..."}
+{"kind": "answer", "question_id": "b-1", "text": "<human's words>"}
+{"kind": "report", "state": "done", "strand": "b", "text": "B DONE: 38 tests green, pushed feature/b"}
+```
+
+Report heads:
+
+```text
+A DONE
+Status: master data implemented, pushed to origin feature/a (secret scan: no leaks).
+Evidence: tests/test_master_data.py 17 passed; full suite via heavy-run 18 passed
+
+B DONE
+Status: time tracking implemented, pushed to origin feature/b.
+Evidence: feature/a brought in via ff-only; full suite via heavy-run 38 passed
+Decisions: over-budget booking refused, as the human answered question b-1
+```
+
+Status board at the end: both strands `done` with their branches, no open questions, the last supervisor runs with their triggers, and usage by model and by project (list-price equivalent).
+
+What the run showed beyond the plan:
+
+- The first strand stopped at a permission question for reading its start file outside the worktree. The stall check reported it exactly once after `stall_minutes`, the supervisor asked the human instead of answering the prompt, and nothing was restarted. The fix is step 7.8 (state folder in `additionalDirectories`).
+- Strand B read the answer to its question from the event file itself and finished before the next supervisor run, so the supervisor did not deliver it (correctly: the strand was done). The delivery path `sf-status deliver` is covered by the tests, not by this run.
+- Bare remote: a push to `main` was refused by the `update` hook, a clean feature push went through, a file with a fake key was stopped by the pre-push hook.
