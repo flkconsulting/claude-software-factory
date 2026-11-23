@@ -255,6 +255,36 @@ def test_no_dangerous_flag(monkeypatch):
     assert seen["kw"]["start_new_session"] is True
 
 
+@pytest.mark.skipif(os.name == "nt", reason="process groups need POSIX")
+def test_run_claude_timeout_kills_group(tmp_path):
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    pidfile = tmp_path / "child.pid"
+    fake = bindir / "claude"
+    fake.write_text(
+        "#!/bin/sh\n"
+        "sh -c 'trap \"\" TERM; sleep 30' &\n"
+        f"echo $! > {pidfile}\n"
+        "sleep 30\n")
+    fake.chmod(0o755)
+    e = {"PATH": f"{bindir}{os.pathsep}{os.environ.get('PATH', '')}"}
+    code, result = effects.run_claude("hello", str(tmp_path), "sonnet", 1, e)
+    assert (code, result) == (124, None)
+    child = int(pidfile.read_text().strip())
+    deadline = time.monotonic() + 6
+    gone = False
+    while time.monotonic() < deadline:
+        try:
+            os.kill(child, 0)
+        except ProcessLookupError:
+            gone = True
+            break
+        time.sleep(0.1)
+    if not gone:
+        os.kill(child, 9)
+    assert gone
+
+
 def test_cli_supervise_exit_codes(env, monkeypatch):
     home = env.state.parent / "home"
     (home / ".claude").mkdir(parents=True)

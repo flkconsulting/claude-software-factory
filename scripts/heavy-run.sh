@@ -36,8 +36,18 @@ while true; do
       # 9>&- keeps the lock out of the child: the slot is tied to this script
       # process alone, so a background process left behind by the command
       # cannot hold it after the command has ended.
-      "$@" 9>&-
-      exit $?
+      "$@" 9>&- &
+      pid=$!
+      # Forward TERM and INT to the child; the slot is released (script exit)
+      # only after the child has really ended.
+      trap 'kill -TERM "$pid" 2>/dev/null' TERM INT
+      status=0
+      while true; do
+        wait "$pid"
+        status=$?
+        kill -0 "$pid" 2>/dev/null || break
+      done
+      exit "$status"
     fi
     exec 9>&-
     n=$((n + 1))

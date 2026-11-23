@@ -75,16 +75,29 @@ def tmux_send(session: str, text: str) -> bool:
 
 
 def _end_group(proc) -> None:
-    for sig in (signal.SIGTERM, signal.SIGKILL):
+    """End the whole process group of proc: SIGTERM, up to 5 s for the leader, then SIGKILL for the group."""
+    try:
+        os.killpg(proc.pid, signal.SIGTERM)
+    except OSError:
+        pass
+    try:
+        proc.wait(timeout=5)
+    except subprocess.SubprocessError:
+        pass
+    try:
+        os.killpg(proc.pid, signal.SIGKILL)
+    except OSError:
+        pass
+    try:
+        proc.wait(timeout=5)
+    except subprocess.SubprocessError:
+        pass
+    for pipe in (proc.stdout, proc.stderr):
         try:
-            os.killpg(proc.pid, sig)
+            if pipe is not None:
+                pipe.close()
         except OSError:
             pass
-        try:
-            proc.wait(timeout=10)
-            return
-        except subprocess.SubprocessError:
-            continue
 
 
 def _one_line(text: str, limit: int = 300) -> str:
