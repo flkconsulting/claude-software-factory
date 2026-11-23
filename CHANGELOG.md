@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented in this file.
 
-## [Unreleased]
+## [0.3.0]
 
 ### Added
 - Local steps: events `local_request` and `local_result`; commands `sf-status local request`, `local pending` and `local result` (a request is refused if the commit is not the head of `origin/<branch>` or the strand already has an open one); trigger `local:<id>` for delivery with the supervisor on.

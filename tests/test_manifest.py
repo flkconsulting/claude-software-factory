@@ -11,15 +11,15 @@ def load(name):
 
 
 def test_version_0_2_2():
-    assert load("plugin.json")["version"] == "0.2.2"
-    assert load("marketplace.json")["plugins"][0]["version"] == "0.2.2"
+    assert load("plugin.json")["version"] == "0.3.0"
+    assert load("marketplace.json")["plugins"][0]["version"] == "0.3.0"
 
 
 def test_plugin_and_marketplace_agree():
     plugin = load("plugin.json")
     market = load("marketplace.json")
     assert plugin["name"] == "software-factory"
-    assert plugin["version"] == "0.2.2"
+    assert plugin["version"] == "0.3.0"
     assert plugin["license"] == "MIT"
     assert len(market["plugins"]) == 1
     entry = market["plugins"][0]
