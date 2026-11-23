@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented in this file.
 
+## [Unreleased]
+
+### Fixed
+- `sf-status deliver` watches the pane during its wait and accepts the first sighting of the pointer. Before, it looked once after 20 s and reported "did not arrive" (no `delivered` event) when a fast strand had already answered and scrolled the pointer out of view.
+
 ## [0.3.0]
 
 ### Added

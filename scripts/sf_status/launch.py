@@ -12,6 +12,7 @@ from .projects import Project, project_for_path
 
 MODELS = ("haiku", "sonnet", "opus")
 FOLLOWUP_HEADING = "## Follow-up "
+DELIVER_POLL_S = 1.0
 # A strand must not inherit the session-identity variables of the supervisor or an outer Claude Code session
 # (fixed names, see effects.SESSION_ENV_NAMES); auth, provider and config variables are kept.
 CLEAN_ENV = "unset " + " ".join(effects.SESSION_ENV_NAMES) + "; "
@@ -85,11 +86,14 @@ def deliver(cfg: ServerConfig, project: Project, strand: str, text: str, wait_s:
     pointer = f"Read follow-up {seq} in {start_file}."
     if not effects.tmux_send(session, pointer):
         return _fail(f"cannot send to tmux session {session}")
-    if wait_s:
-        time.sleep(wait_s)
-    pane = effects.capture_pane(session) or ""
-    if "".join(pointer.split()) not in "".join(pane.split()):  # the pane may wrap the line
-        return _fail(f"follow-up {seq} did not arrive in {session}; it stays in {start_file}")
+    # Poll during the wait: a fast strand answers within seconds and scrolls the pointer out of the
+    # visible pane, so a single look at the end would miss it. The first sighting counts.
+    wanted = "".join(pointer.split())  # the pane may wrap the line
+    deadline = time.monotonic() + wait_s
+    while wanted not in "".join((effects.capture_pane(session) or "").split()):
+        if time.monotonic() >= deadline:
+            return _fail(f"follow-up {seq} did not arrive in {session}; it stays in {start_file}")
+        time.sleep(min(DELIVER_POLL_S, max(deadline - time.monotonic(), 0)))
     try:
         events.append(Path(cfg.state_dir), project.name, {"kind": "delivered", "strand": strand, "seq": seq})
     except (OSError, ValueError) as e:

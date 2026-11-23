@@ -165,6 +165,44 @@ def test_deliver_unconfirmed_exit_1(cfg, project, worktree, fake, capsys):
     assert events.read(Path(cfg.state_dir), "demo")[0] == []
 
 
+class Clock:
+    def __init__(self):
+        self.now = 0.0
+        self.slept = []
+
+    def sleep(self, s):
+        self.slept.append(s)
+        self.now += s
+
+
+def test_deliver_accepts_pointer_seen_before_it_scrolls_away(cfg, project, worktree, fake, monkeypatch):
+    # a fast strand answers within seconds and pushes the pointer out of the visible pane
+    sf = start_file(cfg)
+    live(fake, worktree)
+    clock = Clock()
+    monkeypatch.setattr(launch.time, "monotonic", lambda: clock.now)
+    monkeypatch.setattr(launch.time, "sleep", clock.sleep)
+    monkeypatch.setattr(effects, "capture_pane",
+                        lambda s: f"Read follow-up 1 in {sf}.\n" if clock.now < 5 else "answer text only\n")
+    assert launch.deliver(cfg, project, "alpha", "x", wait_s=20) == 0
+    evs, _ = events.read(Path(cfg.state_dir), "demo")
+    assert [(e["kind"], e["seq"]) for e in evs] == [("delivered", 1)]
+    assert sum(clock.slept) < 5
+
+
+def test_deliver_gives_up_after_wait(cfg, project, worktree, fake, monkeypatch, capsys):
+    start_file(cfg)
+    live(fake, worktree)
+    fake.deliver_ok = False
+    clock = Clock()
+    monkeypatch.setattr(launch.time, "monotonic", lambda: clock.now)
+    monkeypatch.setattr(launch.time, "sleep", clock.sleep)
+    assert launch.deliver(cfg, project, "alpha", "x", wait_s=20) == 1
+    assert "did not arrive" in capsys.readouterr().err
+    assert 20 <= sum(clock.slept) <= 22
+    assert events.read(Path(cfg.state_dir), "demo")[0] == []
+
+
 def test_deliver_without_session(cfg, project, fake, capsys):
     start_file(cfg)
     assert launch.deliver(cfg, project, "alpha", "x", wait_s=0) == 1
