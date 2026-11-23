@@ -263,3 +263,12 @@ def test_gone_notice_dropped_after_strand_blocked(cfg, state, projects, fake):
     fake.panes = {"alpha-a": "busy\n"}
     s = collect.collect(cfg, projects, NOW + 120)
     assert "a: tmux session missing" not in _visible_titles(s)
+
+
+def test_running_strand_sessions_counts_unreadable_events_as_running(state, projects, fake, monkeypatch):
+    fake.sessions = [("alpha-a", str(state / "work" / "alpha-a")), ("alpha-supervisor", str(state / "work" / "alpha"))]
+
+    def boom(*a, **k):
+        raise OSError("denied")
+    monkeypatch.setattr(events, "read", boom)
+    assert collect.running_strand_sessions(projects, "alpha", state) == ["alpha-a"]

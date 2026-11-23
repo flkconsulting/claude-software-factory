@@ -36,14 +36,16 @@ def launch(cfg: ServerConfig, project: Project, short: str, model: str, worktree
     worktree = Path(worktree)
     if not worktree.is_dir():
         return _fail(f"worktree {worktree} does not exist")
-    if os.path.abspath(worktree) == os.path.abspath(project.folder):
+    worktree = Path(os.path.realpath(worktree))
+    if worktree == Path(os.path.realpath(project.folder)):
         return _fail(f"worktree {worktree} is the main checkout of project {project.name!r}; "
                      f"use a separate worktree ({project.folder}-{short})")
     if project_for_path([project], worktree) != project.name:
         return _fail(f"worktree {worktree} does not belong to project {project.name!r}")
     session = f"{project.name}-{short}"
-    running = collect.running_strand_sessions([project], project.name)
-    if session in [name for name, _ in effects.tmux_sessions()]:
+    live = effects.tmux_sessions()
+    running = collect.running_strand_sessions([project], project.name, Path(cfg.state_dir), live)
+    if session in [name for name, _ in live]:
         return _fail(f"tmux session {session} already exists")
     if len(running) >= cfg.max_strands:
         return _fail(f"project {project.name!r} already has {len(running)} running strands (max_strands {cfg.max_strands})")

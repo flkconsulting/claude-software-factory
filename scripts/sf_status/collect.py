@@ -158,13 +158,38 @@ def _obsolete(notice: dict, finished: dict[tuple[str, str], str]) -> bool:
     return done_at is not None and done_at >= str(notice.get("time", ""))
 
 
-def running_strand_sessions(projects: list[Project], name: str) -> list[str]:
-    """tmux sessions '<name>-<strand>' whose pane lies in project `name`, without the supervisor."""
+def strand_sessions(projects: list[Project], sessions: list[tuple[str, str]]) -> dict[str, tuple[str, str | None]]:
+    """tmux session -> (project, strand name or None), by session name and pane path only.
+
+    The known-strand rule (report or start event) is the caller's business.
+    """
+    out: dict[str, tuple[str, str | None]] = {}
+    for name, path in sessions:
+        project = project_for_path(projects, Path(path))
+        if project is None:
+            continue
+        out[name] = (project, name.removeprefix(project + "-") if name.startswith(project + "-") else None)
+    return out
+
+
+def running_strand_sessions(projects: list[Project], name: str, state_dir: Path,
+                           sessions: list[tuple[str, str]] | None = None) -> list[str]:
+    """tmux sessions '<name>-<strand>' of project `name` that still count: no supervisor, no done/blocked strand.
+
+    `sessions` is the tmux listing if the caller already has it.
+    """
+    try:
+        reports = _last_reports(events.read(state_dir, name)[0])
+    except OSError:
+        reports = {}  # events unreadable: count every session (safe side)
     found = []
-    for session, path in effects.tmux_sessions():
-        if (session.startswith(name + "-") and project_for_path(projects, Path(path)) == name
-                and session != f"{name}-{SUPERVISOR_STRAND}"):
-            found.append(session)
+    listing = effects.tmux_sessions() if sessions is None else sessions
+    for session, (project, strand) in strand_sessions(projects, listing).items():
+        if project != name or strand is None or strand == SUPERVISOR_STRAND:
+            continue
+        if reports.get(strand, {}).get("state") in FINISHED:
+            continue
+        found.append(session)
     return found
 
 
@@ -189,13 +214,8 @@ def collect(cfg: ServerConfig, projects: list[Project], now: float,
                for p, evs in per_project.items()}
 
     # tmux sessions -> (project, strand); strand None means unknown
-    sessions: dict[str, tuple[str, str | None]] = {}
-    for name, path in effects.tmux_sessions():
-        project = project_for_path(projects, Path(path))
-        if project is None:
-            continue
-        strand = name.removeprefix(project + "-") if name.startswith(project + "-") else None
-        sessions[name] = (project, strand if strand in last[project] or strand in started[project] else None)
+    sessions = {name: (project, strand if strand in last[project] or strand in started[project] else None)
+                for name, (project, strand) in strand_sessions(projects, effects.tmux_sessions()).items()}
 
     marker_path = state_dir / "markers" / "stall.json"
     marker = {k: dict(v) for k, v in _load_json(marker_path).items() if isinstance(v, dict)}

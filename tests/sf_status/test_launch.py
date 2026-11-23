@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from sf_status import effects, events, launch
+from sf_status import cli, collect, effects, events, launch, projects
 from sf_status.projects import Project
 
 
@@ -74,6 +74,18 @@ def test_launch_quotes_paths(cfg, project, tmp_path, fake):
     assert fake.started[0][1] == str(wt)
 
 
+def test_launch_quotes_start_file_with_space(cfg, project, worktree, fake, tmp_path):
+    import dataclasses
+    import shlex
+    spaced = tmp_path / "state dir"
+    cfg = dataclasses.replace(cfg, state_dir=spaced)
+    sf = start_file(cfg)
+    assert launch.launch(cfg, project, "alpha", "sonnet", worktree, "t") == 0
+    command = fake.started[0][2]
+    assert shlex.quote(f"Read {sf} and carry out the task completely.") in command
+    assert " " in str(sf)
+
+
 def test_launch_refuses_existing_session(cfg, project, worktree, fake, capsys):
     start_file(cfg)
     fake.sessions = [("demo-alpha", str(worktree))]
@@ -115,6 +127,7 @@ def test_launch_tmux_failure(cfg, project, worktree, fake, monkeypatch, capsys):
     start_file(cfg)
     monkeypatch.setattr(effects, "tmux_new_session", lambda *a: False)
     assert launch.launch(cfg, project, "alpha", "sonnet", worktree, "t") == 1
+    assert "cannot start tmux session" in capsys.readouterr().err
     assert events.read(Path(cfg.state_dir), "demo")[0] == []
 
 
@@ -206,3 +219,76 @@ def test_tmux_new_session_env_is_clean(monkeypatch):
     env = seen["env"]
     assert all(env[name] == "z" for name in kept)
     assert not [k for k in env if k in effects.SESSION_ENV_NAMES]
+
+
+def _max_one(cfg, project, tmp_path, fake, last_state):
+    import dataclasses
+    cfg = dataclasses.replace(cfg, max_strands=1)
+    start_file(cfg, "b")
+    (tmp_path / "repo-b").mkdir(exist_ok=True)
+    fake.sessions = [("demo-a", str(tmp_path / "repo-a"))]
+    events.append(Path(cfg.state_dir), "demo", {"kind": "report", "strand": "a", "state": last_state, "text": "x"})
+    return cfg, tmp_path / "repo-b"
+
+
+def test_finished_strands_do_not_count_toward_max_strands(cfg, project, fake, tmp_path, capsys):
+    cfg1, wt = _max_one(cfg, project, tmp_path, fake, "done")
+    assert launch.launch(cfg1, project, "b", "sonnet", wt, "t") == 0
+    cfg2, wt = _max_one(cfg, project, tmp_path, fake, "running")
+    fake.started.clear()
+    assert launch.launch(cfg2, project, "b", "sonnet", wt, "t") == 1
+    assert fake.started == [] and "max_strands" in capsys.readouterr().err
+
+
+def test_launch_refuses_main_checkout_via_symlink(cfg, project, fake, tmp_path, capsys):
+    start_file(cfg)
+    link = tmp_path / "link"
+    link.symlink_to(project.folder)
+    assert launch.launch(cfg, project, "alpha", "sonnet", link, "t") == 1
+    assert fake.started == [] and "main checkout" in capsys.readouterr().err
+
+
+@pytest.fixture
+def home(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.delenv("SF_SOURCE", raising=False)
+    sdir = tmp_path / ".claude" / "software-factory" / "server"
+    (sdir / "events").mkdir(parents=True)
+    return sdir
+
+
+def test_symlinked_project_folder_maps_sessions(home, fake, tmp_path):
+    from sf_status.config import ServerConfig
+    real = tmp_path / "real"
+    (real / ".git" / "hooks").mkdir(parents=True)
+    hook = real / ".git" / "hooks" / "pre-push"
+    hook.write_text("gitleaks\n")
+    hook.chmod(0o755)
+    link = tmp_path / "link"
+    link.symlink_to(real)
+    assert cli.main(["project", "add", "demo", "--title", "Demo", "--folder", str(link)]) == 0
+    items = projects.load(home)
+    assert items[0].folder == __import__("os").path.realpath(link)
+    events.append(home, "demo", {"kind": "report", "strand": "a", "state": "running", "text": "x"})
+    fake.sessions = [("demo-a", str(real / "sub"))]
+    cfg = ServerConfig(enabled=True, state_dir=home, usage_report=False)
+    st = collect.collect(cfg, items, 1_800_000_000.0)
+    assert "demo/a" in st.strands
+    assert collect.strand_sessions(items, fake.sessions) == {"demo-a": ("demo", "a")}
+    evs = events.read(home, "demo")[0]
+    assert not [e for e in evs if "unknown tmux session" in str(e.get("title", ""))]
+
+
+def test_launch_unregistered_project_returns_1(home, capsys):
+    assert cli.main(["launch", "--project", "nope", "--short", "a", "--model", "sonnet",
+                     "--worktree", "/tmp", "--topic", "t"]) == 1
+    assert "not registered" in capsys.readouterr().err
+
+
+def test_launch_requires_model(home):
+    assert cli.main(["launch", "--project", "nope", "--short", "a", "--worktree", "/tmp", "--topic", "t"]) == 2
+
+
+def test_deliver_unregistered_project_returns_1(home, capsys):
+    assert cli.main(["deliver", "--project", "nope", "--strand", "a", "x"]) == 1
+    assert "not registered" in capsys.readouterr().err

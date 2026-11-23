@@ -242,7 +242,7 @@ def _run_project(args) -> int:
     try:
         if args.project_command == "add":
             projects.add(state_dir, projects.Project(
-                name=args.name, title=args.title, folder=os.path.abspath(os.path.expanduser(args.folder)),
+                name=args.name, title=args.title, folder=os.path.realpath(os.path.expanduser(args.folder)),
                 main_branch=args.main_branch, supervisor=args.supervisor == "yes",
                 approval_quote=args.approval_quote, wave_plan=args.wave_plan,
                 never_touch=[x.strip() for x in args.never_touch.split(",") if x.strip()]))
@@ -406,7 +406,7 @@ def _run_launch(args) -> int:
     if project is None:
         return 1
     return launch.launch(cfg, project, args.short, args.model,
-                         Path(os.path.abspath(os.path.expanduser(args.worktree))), args.topic)
+                         Path(os.path.realpath(os.path.expanduser(args.worktree))), args.topic)
 
 
 def _add_deliver(sub) -> None:

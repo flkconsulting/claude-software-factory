@@ -107,7 +107,7 @@ If the server may not reach your normal remote, give it a bare repository that y
 5. It proposes `sf-status project add <name> --title <title> --folder <project-folder> ...` and runs it only after you agree.
 6. It copies the wave plan template to `planning/wave-plan.md` and the supervisor task to `<state-dir>/supervisor/task.md`, with `<state-dir>` filled in.
 7. It shows the cron line and the additions for `settings.json`, and writes them only after your explicit consent. Step 8 explains the cron line, the section "Security limits" the permission additions.
-8. Check that the state folder is allowed for all sessions of `<work-user>` (the setup command writes it with your consent in the step before; add it by hand if you skipped that). Strands read their start file and write their report in `<state-dir>`, which lies outside their worktree; without this entry each strand stops at the question "Allow this read outside the working directories?", and nobody answers it. Add the absolute path to `~/.claude/settings.json` of `<work-user>`, next to the deny list:
+8. Check that the state folder is allowed for all sessions of `<work-user>` (the setup command writes it with your consent in step 7, as an `additionalDirectories` entry; add it by hand if you skipped that). Strands read their start file and write their report in `<state-dir>`, which lies outside their worktree; without this entry each strand stops at the question "Allow this read outside the working directories?", and nobody answers it. Add the absolute path to `~/.claude/settings.json` of `<work-user>`, next to the deny list:
 
    ```json
    "permissions": { "additionalDirectories": ["<state-dir>"] }
@@ -174,6 +174,7 @@ You can stop the server layer at any time; variant A and the hooks keep working.
 - Stop everything: set `server.enabled` to `false` in `~/.claude/software-factory.json`. From the next cron run `sf-status run` only writes "server mode disabled" to the log.
 - Optional: remove the cron line with `crontab -e`.
 - Running strands are not stopped by this. End them with `tmux kill-session -t <project>-<short>` if you want that.
+- Finished strands (done or blocked) keep their tmux pane open but no longer count toward `max_strands`. Close a pane with `tmux kill-session -t <project>-<short>` once its report has been read.
 
 ## Security limits
 
