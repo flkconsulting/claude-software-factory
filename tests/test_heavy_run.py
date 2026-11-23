@@ -136,3 +136,43 @@ def test_stdin_reaches_command(env):
     e, _ = env(1)
     r = run(["cat"], e, input="hello\n")
     assert r.returncode == 0 and r.stdout == "hello\n"
+
+
+def _sleepers(marker):
+    """Pids of processes whose command line is `sleep <marker>` (Linux /proc)."""
+    out = []
+    for d in Path("/proc").iterdir():
+        if d.name.isdigit():
+            try:
+                if (d / "cmdline").read_bytes().split(b"\0")[:2] == [b"sleep", marker.encode()]:
+                    out.append(int(d.name))
+            except OSError:
+                pass
+    return out
+
+
+@pytest.mark.skipif(not Path("/proc/self").exists(), reason="needs /proc")
+def test_heavy_run_int_to_group_ends_command(env):
+    e, heavy = env(1)
+    marker = "7731"
+    p = subprocess.Popen(["bash", str(SCRIPT), "sh", "-c", f"sleep {marker}; true"],
+                         env=e, start_new_session=True)
+    try:
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline and not _sleepers(marker):
+            time.sleep(0.1)
+        assert _sleepers(marker)
+        os.killpg(p.pid, signal.SIGINT)
+        p.wait(timeout=10)
+        time.sleep(0.5)
+        assert _sleepers(marker) == [], "command tree survived Ctrl-C"
+        r = subprocess.run(["flock", "-n", str(heavy / "slot-1.lock"), "true"], timeout=10)
+        assert r.returncode == 0
+    finally:
+        for pid in _sleepers(marker):
+            os.kill(pid, signal.SIGKILL)
+        try:
+            os.killpg(p.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        p.wait()

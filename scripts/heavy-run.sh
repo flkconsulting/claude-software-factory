@@ -33,14 +33,20 @@ while true; do
   while [ "$n" -le "$slots" ]; do
     exec 9>"$state/heavy/slot-$n.lock"
     if flock -n 9; then
+      # Traps first, so a signal during the fork is not lost; the handlers
+      # tolerate a pid that is not set yet. INT and TERM are forwarded as
+      # themselves; the slot is released (script exit) only after the child
+      # has really ended.
+      pid=
+      trap '[ -n "$pid" ] && kill -TERM "$pid" 2>/dev/null' TERM
+      trap '[ -n "$pid" ] && kill -INT "$pid" 2>/dev/null' INT
       # 9>&- keeps the lock out of the child: the slot is tied to this script
       # process alone, so a background process left behind by the command
-      # cannot hold it after the command has ended.
-      "$@" 9>&- <&0 &
+      # cannot hold it after the command has ended. trap - INT QUIT undoes
+      # the "ignore" bash sets for background jobs, so Ctrl-C reaches the
+      # command and its children as usual.
+      ( trap - INT QUIT; exec "$@" ) 9>&- <&0 &
       pid=$!
-      # Forward TERM and INT to the child; the slot is released (script exit)
-      # only after the child has really ended.
-      trap 'kill -TERM "$pid" 2>/dev/null' TERM INT
       status=0
       while true; do
         wait "$pid"
