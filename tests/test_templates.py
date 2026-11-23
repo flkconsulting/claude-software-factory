@@ -112,3 +112,15 @@ def test_setup_mentions_error_index():
     text = SETUP.read_text(encoding="utf-8")
     assert "ERRORS.jsonl" in text
     assert "error-index" in text
+
+
+
+def test_agents_template_local_commands():
+    text = (TEMPLATES / "AGENTS.md").read_text(encoding="utf-8")
+    assert "| Name | Where | Command | Result |" in text
+    assert "server" in text and "local" in text
+    assert "must be repeatable" in text
+    assert "Example: extension-install | local |" in text
+    assert set(PLACEHOLDER.findall(text)) == {
+        "PROJECT_NAME", "PROJECT_PURPOSE", "PLANNING_LOCATION", "PLANNING_PUSH_RULE", "BUILD_COMMANDS",
+    }

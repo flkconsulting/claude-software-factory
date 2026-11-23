@@ -33,7 +33,7 @@ def test_no_curly_placeholders_in_server_templates():
 def test_supervisor_task_size_and_triggers():
     text = read("supervisor-task.md")
     assert len(text.encode("utf-8")) <= 6144
-    for trigger in ("done:", "blocked:", "answer:", "stall:", "approved:", "retry", "safety"):
+    for trigger in ("done:", "blocked:", "answer:", "stall:", "approved:", "retry", "safety", "local:"):
         assert trigger in text, trigger
     for command in ("sf-status launch", "sf-status deliver", "sf-status question", "sf-status notice", "notes.md"):
         assert command in text, command
@@ -175,3 +175,19 @@ def test_deny_list_covers_no_verify():
 def test_settings_lists_state_dir_as_additional_directory():
     data = json.loads(read("settings.json"))
     assert "<state-dir>" in data["permissions"]["additionalDirectories"]
+
+
+def test_strand_start_local_steps():
+    text = read("strand-start.md")
+    assert "sf-status local request" in text
+    assert '--waiting-for "local <id>"' in text
+    assert "never run" in text
+    assert "own `feature/...` branch is pushed before `local request`" in text
+    assert len(text.encode("utf-8")) <= 3500
+
+
+def test_supervisor_task_local_trigger():
+    text = read("supervisor-task.md")
+    assert "local_result" in text and "request_id" in text
+    assert "word for word" in text and "sf-status deliver" in text
+    assert len(text.encode("utf-8")) <= 6144

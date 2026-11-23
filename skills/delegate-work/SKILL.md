@@ -56,6 +56,7 @@ Only when the server section of `~/.claude/software-factory.json` has `enabled: 
 - **Start a strand:** only `sf-status launch --project <project> --short <short> --model <model> --worktree <folder> --topic "<topic>"`. It refuses a second session of the same name and more than `max_strands` strands. Never restart a stalled strand; look at the report and the pane first.
 - **Follow-ups and answers:** word for word with `sf-status deliver --project <project> --strand <short> "<text>"`; the human answers with `sf-status answer --project <project> --id <strand>-<nr> "<text>"`. The strand waits for the answer as a numbered follow-up at the end of its start file and never polls the event file.
 - **Status from strands:** `sf-status report` at start, per step, when waiting and at the end; questions only via `sf-status question` plus `report --state waiting --waiting-for "human <id>"`. The report file goes to `<state-dir>/reports/<project>/<short>.md`, first line `<TOPIC> DONE` or `<TOPIC> BLOCKED`.
+- **Local steps:** commands with `Where = local` in the project `AGENTS.md` are never run by a strand: push the own branch, announce with `sf-status local request`, wait (`--waiting-for "local <id>"`). Section 7 is the local side.
 - **Heavy runs** (full tests, builds, end-to-end) only through `<plugin-dir>/scripts/heavy-run.sh <command>`; it holds one of `heavy_slots` slots.
 - **Supervisor:** with `supervisor: true` on the project, `sf-status run` starts a short supervisor run per bundle of triggers (`done:`, `blocked:`, `answer:`, `stall:`, `approved:`, `retry`, `safety`). It follows `templates/server/supervisor-task.md`, installed as `<state-dir>/supervisor/task.md`, and keeps its memory in `<state-dir>/supervisor/notes.md`. `<state-dir>/supervisor/pause` stops the runs.
 - **Deny list:** add the entries of `templates/server/settings.json` to the `settings.json` of the work user (`~/.claude/settings.json`, which also covers worktrees and the supervisor), with `<state-dir>` replaced by the absolute state folder (`sf-status config state_dir`), as a best-effort deny list against pushes to `main` or `release/*`, force-pushes, `--no-verify`, hard resets, `git clean` and `rm -rf`. It cannot catch every spelling. The pre-push hook only scans for secrets; the protection of the remote (branch protection, or the update hook of a bare remote) is what really stops a push to a protected branch.
@@ -66,3 +67,15 @@ Only when the server section of `~/.claude/software-factory.json` has `enabled: 
 ## 6. Watcher
 
 For a start at a fixed time that depends on a precondition, run `templates/server/watcher.sh <HH:MM> <project> <short> <model> <worktree> "<topic>" <precondition command>` in its own tmux session. At the time it runs the precondition: if it succeeds it starts the strand with `sf-status launch`, otherwise it leaves `sf-status notice --level warning`. It starts once the time has been reached (also when started late the same day), launches one strand once and never retries; replace the placeholder `<plugin-dir>` in the script first. Never wait on process-list text; the precondition is a command with an exit code.
+
+## 7. Local steps (local side)
+
+For steps a strand announced because they need the human's machine. The local chat session polls the server; nothing runs unasked on the laptop.
+
+- **Watch:** start `<plugin-dir>/scripts/local-watch.sh <ssh-target> <project>` with `run_in_background`. Restart it after each wake and after a session change, and mention it in the handover note.
+- **Exit 10:** stdout holds the pending lines (also `ssh <ssh-target> sf-status local pending --project <project>`). For each line, one at a time: `git fetch`, own worktree per branch, `merge --ff-only` to the commit (a mismatch is `failed`), then run the command that the local `AGENTS.md` names for the step. Unknown step: `ssh <ssh-target> sf-status local result --project <project> --id <id> --state failed "unknown step <name>"`.
+- **Report:** `ssh <ssh-target> sf-status local result --project <project> --id <id> --state ok|failed -` with the text on stdin (no quoting problems). Tell the human the result and what to test.
+- **Delivery:** with the supervisor off also `ssh <ssh-target> sf-status deliver --project <project> --strand <short> "Local step <step> <state>: <text>"`; with it on never, the `local:` trigger delivers.
+- **Exit 11 or 12:** ssh failed or the maximum duration was reached. Say so and restart on request.
+
+**Why:** The server never sends free command text; it names a step and the local `AGENTS.md` decides what that step runs.

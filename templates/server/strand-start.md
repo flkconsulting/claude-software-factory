@@ -16,6 +16,7 @@ Strand `<short>` of project `<project>`. Keep this file short; reference instead
    - Delete or reset no data store, volume or container you did not create; no paid resources.
    - Type into no other session; approve no permission prompt there.
    - Never use `--dangerously-skip-permissions`.
+   - A command marked `local` in `AGENTS.md` is never run on the server. The own `feature/...` branch is pushed before `local request`: `sf-status local request --project <project> --strand <short> --step <name> --branch <branch> --commit <full sha>` prints `<id>`; then `sf-status report --project <project> --strand <short> --state waiting --waiting-for "local <id>" "waiting for local step"`. The result arrives as a numbered follow-up; on `failed` fix the cause, push, announce again.
    - Ask the human only through `sf-status question`, never in the pane.
 8. **Report:** file `<state-dir>/reports/<project>/<short>.md`; the first line is exactly `<TOPIC> DONE` or `<TOPIC> BLOCKED`. Then status, evidence (commits, test counts), decisions with reasons, open points, next step, what the human must do. Write this file first and only then send `sf-status report --state done` (or `blocked`); never send it before the file exists, because the supervisor starts follow-up strands from the file.
 

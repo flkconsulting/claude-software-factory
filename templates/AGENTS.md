@@ -23,6 +23,13 @@ Example: Tests never run against an installation that holds real customer data.
 ## Commands
 {{BUILD_COMMANDS}}
 
+Steps that cannot run on the server (for example building a VS Code extension) are listed in a table; `Where` is `server` (default) or `local`. Strands never run `local` steps, they announce them. A local step must be repeatable, because open ones run again after a session change.
+
+| Name | Where | Command | Result |
+| --- | --- | --- | --- |
+
+Example: extension-install | local | <command> | build number
+
 Example: `make test` runs the unit tests; `make lint` runs linter and format check.
 
 ## Conventions
