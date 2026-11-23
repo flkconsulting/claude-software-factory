@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.1]
+
+### Fixed
+- Project entries are checked strictly (types, duplicate names); an invalid entry is refused instead of being read as "supervisor on". `sf-status` without `HOME` prints one line instead of a traceback. The strand id `server` is reserved.
+- Finished and blocked strands free their `max_strands` slot, so the supervisor can launch again while their tmux pane is still open.
+- Projects and worktrees are stored and compared by their real paths, so symlinked folders map to the right project. Projects registered through a symlinked path before 0.2.1 keep working; re-registering stores the real path.
+- The supervisor timeout ends the whole process group of the `claude` run, including children that ignore TERM.
+- `heavy-run.sh` forwards TERM and INT to the command (Ctrl-C reaches the command and its children), passes stdin through, and releases the slot only after the command has ended.
+- `project add`, `project remove` and `project list` refuse an unreadable or invalid `projects.json` with one `sf-status:` line and exit 1, instead of overwriting or silently ignoring it.
+- The status page escapes backslashes and strips C1 and bidirectional control characters.
+- Cache writes in the usage report are counted from the `cache_creation` sub-dictionary.
+
 ## [0.2.0]
 
 ### Added
