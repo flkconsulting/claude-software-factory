@@ -114,7 +114,6 @@ def test_setup_mentions_error_index():
     assert "error-index" in text
 
 
-
 def test_agents_template_local_commands():
     text = (TEMPLATES / "AGENTS.md").read_text(encoding="utf-8")
     assert "| Name | Where | Command | Result |" in text
