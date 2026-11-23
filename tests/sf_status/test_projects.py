@@ -185,3 +185,20 @@ def test_add_refuses_reserved_names(env, tmp_path, name, capsys):
     assert cli.main(add_args(repo, name)) == 1
     assert "reserved" in capsys.readouterr().err
     assert projects.load(env) == []
+
+
+def _write_registry(env, entries):
+    (env / "projects.json").write_text(json.dumps({"projects": entries}))
+
+
+def test_load_rejects_string_supervisor(env):
+    _write_registry(env, [{"name": "a", "title": "A", "folder": "/x", "supervisor": "false"}])
+    assert projects.load(env) == []
+    assert "supervisor" in (env / "run.log").read_text()
+
+
+def test_load_rejects_duplicate_names(env):
+    _write_registry(env, [{"name": "a", "title": "A", "folder": "/x"},
+                           {"name": "a", "title": "A", "folder": "/y"}])
+    assert projects.load(env) == []
+    assert "duplicate project name a" in (env / "run.log").read_text()

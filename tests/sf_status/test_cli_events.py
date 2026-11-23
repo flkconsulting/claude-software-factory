@@ -77,3 +77,19 @@ def test_task_and_done(env):
 
 def test_strand_required(env):
     assert cli.main(["report", "--project", "p", "--state", "running", "x"]) == 2
+
+
+def test_cli_without_home_exits_1(env, monkeypatch, capsys):
+    def boom():
+        raise RuntimeError("no home")
+    monkeypatch.setattr(cli.Path, "home", staticmethod(boom))
+    for argv in (["wake", "fast-forward"],
+                 ["report", "--project", "p", "--strand", "a", "--state", "working", "hi"]):
+        assert cli.main(argv) == 1
+        assert capsys.readouterr().err.startswith("sf-status:")
+
+
+def test_emit_rejects_server_strand(env, capsys):
+    argv = ["report", "--project", "p", "--strand", "server", "--state", "working", "hi"]
+    assert cli.main(argv) == 2
+    assert "'server' is reserved" in capsys.readouterr().err

@@ -48,6 +48,11 @@ def _from_dict(d: dict) -> Project:
         raise ValueError("every entry needs a valid name and a folder")
     known = Project.__dataclass_fields__
     p = Project(**{k: v for k, v in d.items() if k in known})
+    if not isinstance(p.supervisor, bool):
+        raise ValueError("supervisor must be true or false")
+    for key in ("title", "main_branch", "wave_plan"):
+        if not isinstance(getattr(p, key), str):
+            raise ValueError(f"{key} must be a string")
     if not isinstance(p.never_touch, list):
         raise ValueError("never_touch must be a list")
     return p
@@ -66,10 +71,17 @@ def load(state_dir: Path) -> list[Project]:
         data = json.loads(raw)
         if not isinstance(data, dict) or not isinstance(data.get("projects"), list):
             raise ValueError('top level must be {"projects": [...]}')
-        return [_from_dict(d) for d in data["projects"]]
+        items = [_from_dict(d) for d in data["projects"]]
     except (ValueError, TypeError) as e:
         _log(state_dir, f"projects.json invalid, treated as empty: {e}")
         return []
+    seen: set[str] = set()
+    for p in items:
+        if p.name in seen:
+            _log(state_dir, f"projects.json unreadable: duplicate project name {p.name}")
+            return []
+        seen.add(p.name)
+    return items
 
 
 def _save(state_dir: Path, items: list[Project]) -> None:

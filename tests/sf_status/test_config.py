@@ -82,3 +82,11 @@ def test_wrapper_runs(tmp_path):
     r = subprocess.run([str(ROOT / "scripts" / "bin" / "sf-status"), "config", "stall_minutes"],
                        capture_output=True, text=True, env=env)
     assert r.returncode == 0 and r.stdout.strip() == "45"
+
+
+def test_config_without_home_raises_value_error(monkeypatch):
+    def boom():
+        raise RuntimeError("no home")
+    monkeypatch.setattr(Path, "home", staticmethod(boom))
+    with pytest.raises(ValueError):
+        load_server_config()

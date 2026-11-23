@@ -46,7 +46,11 @@ def _valid(name: str, value, default, home: Path):
 
 
 def load_server_config(home: Path | None = None) -> ServerConfig:
-    home = home if home is not None else Path.home()
+    if home is None:
+        try:
+            home = Path.home()
+        except (RuntimeError, KeyError, OSError) as e:
+            raise ValueError("cannot determine the home folder (HOME unset)") from e
     values: dict = {}
     section: dict = {}
     try:

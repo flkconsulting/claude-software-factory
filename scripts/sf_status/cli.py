@@ -13,13 +13,25 @@ from . import collect, effects, events, launch, projects, render, supervisor, wa
 from .config import DEFAULT_STATE_DIR, ServerConfig, load_server_config
 
 
+def _config() -> ServerConfig | None:
+    """Server config, or None after one stderr line when the home folder is unknown."""
+    try:
+        return load_server_config()
+    except ValueError as e:
+        print(f"sf-status: {e}", file=sys.stderr)
+        return None
+
+
 def _add_config(sub) -> None:
     p = sub.add_parser("config", help="print one server setting")
     p.add_argument("key", choices=[f.name for f in fields(ServerConfig)])
 
 
 def _run_config(args: argparse.Namespace) -> int:
-    value = getattr(load_server_config(), args.key)
+    cfg = _config()
+    if cfg is None:
+        return 1
+    value = getattr(cfg, args.key)
     print(str(value).lower() if isinstance(value, bool) else value)
     return 0
 
@@ -45,12 +57,18 @@ def _registered(state_dir: Path, name: str) -> bool:
 
 def _emit(args, event: dict, reserved_check: bool = True) -> dict | int:
     """Append an event; returns the stored event or an exit code."""
-    state_dir = load_server_config().state_dir
+    cfg = _config()
+    if cfg is None:
+        return 1
+    state_dir = cfg.state_dir
     if not _registered(state_dir, args.project):
         return 1
     strand = event["strand"]
     if reserved_check and strand == "supervisor" and os.environ.get("SF_SOURCE") != "supervisor":
         print("sf-status: strand id 'supervisor' is reserved for the supervisor", file=sys.stderr)
+        return 2
+    if reserved_check and strand == projects.SYSTEM_STRAND:
+        print(f"sf-status: strand id '{projects.SYSTEM_STRAND}' is reserved", file=sys.stderr)
         return 2
     try:
         return events.append(state_dir, args.project, event)
@@ -113,7 +131,10 @@ def _run_question(args) -> int:
         print("sf-status: --nr must be at least 1", file=sys.stderr)
         return 2
     qid = f"{args.strand}-{args.nr}"
-    state_dir = load_server_config().state_dir
+    cfg = _config()
+    if cfg is None:
+        return 1
+    state_dir = cfg.state_dir
     if _registered(state_dir, args.project):
         try:
             history, _ = events.read(state_dir, args.project)
@@ -141,7 +162,10 @@ def _add_answer(sub) -> None:
 
 
 def _run_answer(args) -> int:
-    state_dir = load_server_config().state_dir
+    cfg = _config()
+    if cfg is None:
+        return 1
+    state_dir = cfg.state_dir
     if not _registered(state_dir, args.project):
         return 1
     try:
@@ -211,7 +235,10 @@ def _add_project(sub) -> None:
 
 
 def _run_project(args) -> int:
-    state_dir = load_server_config().state_dir
+    cfg = _config()
+    if cfg is None:
+        return 1
+    state_dir = cfg.state_dir
     try:
         if args.project_command == "add":
             projects.add(state_dir, projects.Project(
@@ -224,10 +251,7 @@ def _run_project(args) -> int:
         else:
             for p in projects.load(state_dir):
                 print(f"{p.name}\t{p.title}\t{p.folder}\tsupervisor={'yes' if p.supervisor else 'no'}")
-    except projects.ProjectError as e:
-        print(f"sf-status: {e}", file=sys.stderr)
-        return 1
-    except (OSError, ValueError) as e:
+    except (projects.ProjectError, OSError, ValueError) as e:
         print(f"sf-status: {e}", file=sys.stderr)
         return 1
     return 0
@@ -346,10 +370,10 @@ def _add_wake(sub) -> None:
 
 
 def _run_wake(args) -> int:
-    cfg = load_server_config()
     try:
+        cfg = load_server_config()
         wake.fast_forward(cfg, projects.load(cfg.state_dir), Path(cfg.state_dir), effects.now())
-    except OSError as e:
+    except (OSError, ValueError) as e:
         print(f"sf-status: {e}", file=sys.stderr)
         return 1
     return 0
@@ -375,7 +399,9 @@ def _add_launch(sub) -> None:
 
 
 def _run_launch(args) -> int:
-    cfg = load_server_config()
+    cfg = _config()
+    if cfg is None:
+        return 1
     project = _project(args.project, Path(cfg.state_dir))
     if project is None:
         return 1
@@ -390,7 +416,9 @@ def _add_deliver(sub) -> None:
 
 
 def _run_deliver(args) -> int:
-    cfg = load_server_config()
+    cfg = _config()
+    if cfg is None:
+        return 1
     project = _project(args.project, Path(cfg.state_dir))
     if project is None:
         return 1
@@ -430,7 +458,3 @@ def main(argv: list[str]) -> int:
     except SystemExit as e:
         return e.code if isinstance(e.code, int) else 2
     return COMMANDS[args.command][1](args)
-
-
-if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))
