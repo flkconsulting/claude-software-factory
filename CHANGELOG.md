@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented in this file.
 
+## Unreleased
+
+### Changed
+- workflow-retrospective: session transcripts as a source, tool-before-text principle, review of always-loaded agent instructions.
+
 ## [0.2.1]
 
 ### Fixed
@@ -32,9 +37,6 @@ All notable changes to this project are documented in this file.
 ## [0.1.0]
 
 Stage 1 (variant A). Entries below were collected under "Unreleased" before.
-
-### Changed
-- workflow-retrospective: session transcripts as a source, tool-before-text principle, review of always-loaded agent instructions.
 
 ### Added
 - Plugin and marketplace manifests (version 0.1.0).
