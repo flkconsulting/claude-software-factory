@@ -202,3 +202,38 @@ def test_load_rejects_duplicate_names(env):
                            {"name": "a", "title": "A", "folder": "/y"}])
     assert projects.load(env) == []
     assert "duplicate project name a" in (env / "run.log").read_text()
+
+
+def _invalid_registry(env):
+    f = env / "projects.json"
+    f.write_text(json.dumps({"projects": [
+        {"name": "one", "title": "One", "folder": "/x/one"},
+        {"name": "two", "title": "Two", "folder": "/x/two", "supervisor": "false"}]}), encoding="utf-8")
+    return f, f.read_bytes()
+
+
+def test_project_add_refuses_invalid_registry(env, tmp_path, capsys):
+    f, before = _invalid_registry(env)
+    repo = make_repo(tmp_path / "newp")
+    assert cli.main(add_args(repo, "newp")) == 1
+    assert "sf-status: projects.json unreadable" in capsys.readouterr().err
+    assert f.read_bytes() == before
+
+
+def test_project_list_refuses_invalid_registry(env, capsys):
+    _invalid_registry(env)
+    assert cli.main(["project", "list"]) == 1
+    cap = capsys.readouterr()
+    assert "sf-status: projects.json unreadable" in cap.err and cap.out == ""
+
+
+def test_project_remove_refuses_invalid_registry(env, capsys):
+    f, before = _invalid_registry(env)
+    assert cli.main(["project", "remove", "one"]) == 1
+    assert "sf-status: projects.json unreadable" in capsys.readouterr().err
+    assert f.read_bytes() == before
+
+
+def test_project_list_missing_file_is_empty_ok(env, capsys):
+    assert cli.main(["project", "list"]) == 0
+    assert capsys.readouterr().out == ""

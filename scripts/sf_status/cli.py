@@ -249,7 +249,7 @@ def _run_project(args) -> int:
         elif args.project_command == "remove":
             projects.remove(state_dir, args.name)
         else:
-            for p in projects.load(state_dir):
+            for p in projects.load_strict(state_dir):
                 print(f"{p.name}\t{p.title}\t{p.folder}\tsupervisor={'yes' if p.supervisor else 'no'}")
     except (projects.ProjectError, OSError, ValueError) as e:
         print(f"sf-status: {e}", file=sys.stderr)

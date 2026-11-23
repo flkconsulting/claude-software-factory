@@ -248,6 +248,21 @@ def test_launch_refuses_main_checkout_via_symlink(cfg, project, fake, tmp_path, 
     assert fake.started == [] and "main checkout" in capsys.readouterr().err
 
 
+def test_launch_accepts_old_symlinked_registration(cfg, fake, tmp_path):
+    real = tmp_path / "real"
+    real.mkdir()
+    link = tmp_path / "link"
+    link.symlink_to(real)
+    old = Project(name="demo", title="Demo", folder=str(link), main_branch="main", supervisor=False,
+                  approval_quote=None, wave_plan="planning/wave-plan.md", never_touch=[])
+    wt = tmp_path / "real-alpha"
+    wt.mkdir()
+    (tmp_path / "link-alpha").symlink_to(wt)
+    start_file(cfg)
+    assert launch.launch(cfg, old, "alpha", "sonnet", wt, "t") == 0
+    assert len(fake.started) == 1
+
+
 @pytest.fixture
 def home(tmp_path, monkeypatch):
     monkeypatch.setenv("HOME", str(tmp_path))

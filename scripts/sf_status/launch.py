@@ -1,4 +1,5 @@
 """Start a work strand in tmux and deliver follow-ups to it."""
+import dataclasses
 import os
 import shlex
 import sys
@@ -37,7 +38,9 @@ def launch(cfg: ServerConfig, project: Project, short: str, model: str, worktree
     if not worktree.is_dir():
         return _fail(f"worktree {worktree} does not exist")
     worktree = Path(os.path.realpath(worktree))
-    if worktree == Path(os.path.realpath(project.folder)):
+    # registrations made before real paths were stored may hold a symlinked folder
+    project = dataclasses.replace(project, folder=os.path.realpath(project.folder))
+    if worktree == Path(project.folder):
         return _fail(f"worktree {worktree} is the main checkout of project {project.name!r}; "
                      f"use a separate worktree ({project.folder}-{short})")
     if project_for_path([project], worktree) != project.name:

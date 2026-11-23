@@ -58,29 +58,42 @@ def _from_dict(d: dict) -> Project:
     return p
 
 
-def load(state_dir: Path) -> list[Project]:
-    """All registered projects; a missing file is empty, a broken one is empty plus a log line."""
+def _read(state_dir: Path) -> tuple[list[Project], str | None]:
+    """(projects, problem): problem is None when the file is fine or missing."""
     try:
         raw = _file(state_dir).read_text(encoding="utf-8")
     except FileNotFoundError:
-        return []
+        return [], None
     except (OSError, ValueError) as e:  # ValueError covers UnicodeDecodeError
-        _log(state_dir, f"projects.json unreadable: {e}")
-        return []
+        return [], str(e)
     try:
         data = json.loads(raw)
         if not isinstance(data, dict) or not isinstance(data.get("projects"), list):
             raise ValueError('top level must be {"projects": [...]}')
         items = [_from_dict(d) for d in data["projects"]]
     except (ValueError, TypeError) as e:
-        _log(state_dir, f"projects.json invalid, treated as empty: {e}")
-        return []
+        return [], str(e)
     seen: set[str] = set()
     for p in items:
         if p.name in seen:
-            _log(state_dir, f"projects.json unreadable: duplicate project name {p.name}")
-            return []
+            return [], f"duplicate project name {p.name}"
         seen.add(p.name)
+    return items, None
+
+
+def load(state_dir: Path) -> list[Project]:
+    """All registered projects; a missing file is empty, a broken one is empty plus a log line."""
+    items, problem = _read(state_dir)
+    if problem:
+        _log(state_dir, f"projects.json unreadable, treated as empty: {problem}")
+    return items
+
+
+def load_strict(state_dir: Path) -> list[Project]:
+    """Like load, but a file that exists and is broken raises ProjectError (for add/remove/list)."""
+    items, problem = _read(state_dir)
+    if problem:
+        raise ProjectError(f"projects.json unreadable: {problem}")
     return items
 
 
@@ -138,14 +151,14 @@ def check(project: Project, existing: list[Project]) -> None:
 
 
 def add(state_dir: Path, project: Project) -> None:
-    items = load(state_dir)
+    items = load_strict(state_dir)
     check(project, items)
     _save(state_dir, items + [project])
     events.append(state_dir, project.name, {"kind": "project_added", "strand": SYSTEM_STRAND})
 
 
 def remove(state_dir: Path, name: str) -> None:
-    items = load(state_dir)
+    items = load_strict(state_dir)
     if name not in [p.name for p in items]:
         raise ProjectError(f"project {name!r} is not registered")
     events.append(state_dir, name, {"kind": "project_removed", "strand": SYSTEM_STRAND})
