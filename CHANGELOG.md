@@ -10,6 +10,7 @@ All notable changes to this project are documented in this file.
 - `scripts/local-watch.sh`: ssh poller for the local chat session (exit codes 10, 11, 12; per-call ssh timeout).
 - Rules for local steps in the strand start, supervisor task, project `AGENTS.md` template and skill `delegate-work`.
 - `docs/05-server-setup.md`: section "Local steps".
+- `sf-status deliver` reads the follow-up text from stdin when the text is `-` (like `local result`), so free text never passes through the remote shell.
 
 ## [0.2.2]
 

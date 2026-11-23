@@ -64,5 +64,7 @@ def test_error_index_contract():
 def test_delegate_work_local_steps():
     text = (ROOT / "skills" / "delegate-work" / "SKILL.md").read_text(encoding="utf-8")
     for needle in ("local-watch.sh", "sf-status local pending", "sf-status local result",
-                   "merge --ff-only", "local:", "the strand of the pending line", "unknown step", "one at a time", "never run"):
+                   "merge --ff-only", "local:", "the strand of the pending line", "unknown step", "one at a time", "never run",
+                   "printf '%s' \"unknown step <name>\" | ssh", "| ssh <ssh-target> sf-status deliver",
+                   "information only", "full path", "Keep the text short"):
         assert needle in text, needle

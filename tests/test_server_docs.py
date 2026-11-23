@@ -75,7 +75,7 @@ def test_doc_local_steps_section():
     assert "\n## Local steps" in text
     section = text.split("\n## Local steps", 1)[1].split("\n## ", 1)[0]
     for needle in ("local_notice_hours", "local-watch.sh", "sf-status local pending", "run_in_background",
-                   "shared remote", "exit code 10", "exit code 11", "exit code 12"):
+                   "shared remote", "SF_LOCAL_WATCH_SSH_TIMEOUT", "SF_LOCAL_WATCH_REMOTE=", "withdrawn", "information only", "| ssh <ssh-target> sf-status deliver", "exit code 10", "exit code 11", "exit code 12"):
         assert needle in section, needle
 
 

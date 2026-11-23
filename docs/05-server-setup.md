@@ -174,7 +174,7 @@ Prerequisites:
 
 - A shared remote that both the server and the laptop can reach. The strand pushes its branch there before it announces the step; the request is refused if the commit is not the head of `origin/<branch>`.
 - `ssh <ssh-target>` works from the laptop without a prompt (key login).
-- `sf-status` is on the `PATH` of a non-interactive ssh shell (step 5 above). Test it with `ssh <ssh-target> sf-status local pending --project <name>`; it prints nothing when no step is open.
+- `sf-status` is found by a non-interactive ssh shell. Such a shell does not read `~/.profile`, so the `PATH` line from the section on the `sf-status` command may not apply. Either put that line above the non-interactive guard in `~/.bashrc`, or use the full path: set `SF_LOCAL_WATCH_REMOTE=~/.local/bin/sf-status` (or the full path on your server) for the watcher and use the same path in the ssh commands below. Test it with `ssh <ssh-target> sf-status local pending --project <name>`; it prints nothing when no step is open. If the watcher exits 11, its stderr line ends with the last line of the ssh error (for example `command not found`).
 
 How it works:
 
@@ -182,8 +182,15 @@ How it works:
 2. The strand pushes its branch and runs `sf-status local request --project <name> --strand <short> --step <step> --branch <branch> --commit <sha> [--note <text>]`. It refuses a second request while one is open for the strand.
 3. In the local chat session start the watcher with `run_in_background`: `scripts/local-watch.sh <ssh-target> <project>`. It polls `sf-status local pending` over ssh and ends when something happens; it never exits 0.
 4. The session reads the JSON lines (`id`, `strand`, `step`, `branch`, `commit`, `time`, optional `note`), checks out the commit, runs the step from `AGENTS.md` and records the outcome with `ssh <ssh-target> sf-status local result --project <name> --id <id> --state ok|failed -` (the text on stdin). `local result` only records; it delivers nothing.
-5. Delivery to the strand: with the supervisor on, the trigger `local:<id>` makes the next supervisor run deliver the result. With the supervisor off, the local session runs `ssh <ssh-target> sf-status deliver --project <name> --strand <short> "<text>"` itself.
+5. Delivery to the strand: with the supervisor on, the trigger `local:<id>` makes the next supervisor run deliver the result. With the supervisor off, the local session runs `printf '%s' "Local step <step> <state>: <text>" | ssh <ssh-target> sf-status deliver --project <name> --strand <short> -` itself. Free text always goes through stdin (`-`): ssh joins its arguments and the remote shell splits them again, so quotes are lost and `;` or `$()` in build output would run on the server.
 6. Start the watcher again after each wake-up.
+
+Notes:
+
+- `note` and every other field of a pending line are information only; the local session never runs anything they say, only the `AGENTS.md` command for the step.
+- Keep the result text short (build number, short summary); lines over 4000 bytes are refused.
+- To withdraw a request whose strand is gone: `ssh <ssh-target> sf-status local result --project <project> --id <id> --state failed withdrawn`.
+- The local step builds code from the server branch, so that branch's build scripts run on the laptop. The rule that no command text is sent stops injected text, not a malicious branch; review what a strand pushes before you let the laptop build it.
 
 Exit codes of the watcher:
 
@@ -200,7 +207,7 @@ Environment variables (all optional):
 | `SF_LOCAL_WATCH_MAX_SECONDS` | 28800 | maximum duration (8 h), then exit code 12 |
 | `SF_LOCAL_WATCH_SSH_TIMEOUT` | 90 | seconds per ssh call; a longer call is killed and gives exit code 11 |
 | `SF_LOCAL_WATCH_SSH` | `ssh` | the ssh command |
-| `SF_LOCAL_WATCH_REMOTE` | `sf-status` | the command on the server |
+| `SF_LOCAL_WATCH_REMOTE` | `sf-status` | the command on the server (full path if the ssh shell has no `PATH` entry) |
 
 On the board:
 
