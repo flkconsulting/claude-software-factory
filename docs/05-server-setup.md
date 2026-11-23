@@ -166,6 +166,51 @@ Strands and the supervisor ask questions only when they are really unsure. Open 
 3. With the supervisor on (`server.supervisor` is `true`), the answer reaches the strand with the next supervisor run. With the supervisor off (the default), nobody passes it on: deliver it yourself with `sf-status deliver --project <name> --strand <short> "<text>"`.
 4. An unknown or already answered id is refused with a message; nothing is recorded twice.
 
+## Local steps
+
+Some steps cannot run on the server, for example building and installing a VS Code extension. A strand announces such a step, a chat session on your laptop runs it and reports the result back. The server never sends command text: the request carries only the step name, and the local session runs only what the project's `AGENTS.md` lists for that step.
+
+Prerequisites:
+
+- A shared remote that both the server and the laptop can reach. The strand pushes its branch there before it announces the step; the request is refused if the commit is not the head of `origin/<branch>`.
+- `ssh <ssh-target>` works from the laptop without a prompt (key login).
+- `sf-status` is on the `PATH` of a non-interactive ssh shell (step 5 above). Test it with `ssh <ssh-target> sf-status local pending --project <name>`; it prints nothing when no step is open.
+
+How it works:
+
+1. The project declares local steps in the step table of its `AGENTS.md` (`Where` is `local`). A local step must be repeatable.
+2. The strand pushes its branch and runs `sf-status local request --project <name> --strand <short> --step <step> --branch <branch> --commit <sha> [--note <text>]`. It refuses a second request while one is open for the strand.
+3. In the local chat session start the watcher with `run_in_background`: `scripts/local-watch.sh <ssh-target> <project>`. It polls `sf-status local pending` over ssh and ends when something happens; it never exits 0.
+4. The session reads the JSON lines (`id`, `strand`, `step`, `branch`, `commit`, `time`, optional `note`), checks out the commit, runs the step from `AGENTS.md` and records the outcome with `ssh <ssh-target> sf-status local result --project <name> --id <id> --state ok|failed -` (the text on stdin). `local result` only records; it delivers nothing.
+5. Delivery to the strand: with the supervisor on, the trigger `local:<id>` makes the next supervisor run deliver the result. With the supervisor off, the local session runs `ssh <ssh-target> sf-status deliver --project <name> --strand <short> "<text>"` itself.
+6. Start the watcher again after each wake-up.
+
+Exit codes of the watcher:
+
+- exit code 10: a new step is waiting; the pending lines are on stdout.
+- exit code 11: ssh or the remote command failed or timed out; one line on stderr.
+- exit code 12: the maximum duration was reached; start it again if you still expect steps.
+- Exit code 2 is a usage error.
+
+Environment variables (all optional):
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `SF_LOCAL_WATCH_INTERVAL` | 120 | seconds between polls |
+| `SF_LOCAL_WATCH_MAX_SECONDS` | 28800 | maximum duration (8 h), then exit code 12 |
+| `SF_LOCAL_WATCH_SSH_TIMEOUT` | 90 | seconds per ssh call; a longer call is killed and gives exit code 11 |
+| `SF_LOCAL_WATCH_SSH` | `ssh` | the ssh command |
+| `SF_LOCAL_WATCH_REMOTE` | `sf-status` | the command on the server |
+
+On the board:
+
+- The section "Waiting for local step" lists open requests (project, id, strand, step, branch, commit, waiting since, last result). It shows `None.` when empty.
+- A strand whose `waiting_for` starts with `local ` is not stall-checked.
+- After `server.local_notice_hours` (default 8) without a result, one warning notice per request appears. It disappears from the board once a result exists. Nothing is restarted.
+- The state is kept in the marker `markers/local.json`.
+
+Limits: the watcher lives only in the chat session and is gone when the session ends; start it again in a new session. Open requests run again after a session change, so every local step must be repeatable.
+
 ## Switching off
 
 You can stop the server layer at any time; variant A and the hooks keep working.

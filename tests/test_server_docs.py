@@ -68,3 +68,18 @@ def test_setup_and_skill_wording_consistent():
     assert "the pre-push hook and branch protection are the real guard" not in skill
     assert "project's `.claude/settings.json`" not in skill and "settings.json" in skill
     assert "`<state-dir>`" in setup.split("11. **Wave plan", 1)[1].split("12. **", 1)[0]
+
+
+def test_doc_local_steps_section():
+    text = _doc()
+    assert "\n## Local steps" in text
+    section = text.split("\n## Local steps", 1)[1].split("\n## ", 1)[0]
+    for needle in ("local_notice_hours", "local-watch.sh", "sf-status local pending", "run_in_background",
+                   "shared remote", "exit code 10", "exit code 11", "exit code 12"):
+        assert needle in section, needle
+
+
+def test_readme_lists_local_watcher():
+    text = (ROOT / "README.md").read_text(encoding="utf-8")
+    table = text.split("## What is in the box", 1)[1].split("\n## ", 1)[0]
+    assert "local-watch.sh" in table

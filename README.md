@@ -47,7 +47,7 @@ It asks one question at a time, detects project facts from the repository, and s
 
 ## Server
 
-Variant B (Stage 2) runs longer work on a dedicated server: strands in tmux, a cron run every three minutes, a status board (`STATUS.md`, `status.html`), an optional supervisor that starts only approved strands, and a limiter for heavy runs. Choose variant B in `/setup-workflow`; it checks `tmux`, `crontab` and `flock`, never installs anything, and writes the cron line and permission additions only after your consent. The server layer is off until `server.enabled` is `true` in `~/.claude/software-factory.json`. Step by step: [Server setup](docs/05-server-setup.md).
+Variant B (Stage 2) runs longer work on a dedicated server: strands in tmux, a cron run every three minutes, a status board (`STATUS.md`, `status.html`), an optional supervisor that starts only approved strands, and a limiter for heavy runs. Choose variant B in `/setup-workflow`; it checks `tmux`, `crontab` and `flock`, never installs anything, and writes the cron line and permission additions only after your consent. The server layer is off until `server.enabled` is `true` in `~/.claude/software-factory.json`. Steps that cannot run on the server are announced by a strand and run in your local chat session, woken by `scripts/local-watch.sh` (see "Local steps" in the server setup). Step by step: [Server setup](docs/05-server-setup.md).
 
 ## What is in the box
 
@@ -65,6 +65,7 @@ Variant B (Stage 2) runs longer work on a dedicated server: strands in tmux, a c
 | `sf-status` | Server state, status board, wake triggers, supervisor run, strand launch and answers (variant B) | `scripts/bin/sf-status`, `scripts/sf_status/` |
 | Heavy-run limiter | Runs a heavy command only while one of N slots is free (variant B) | `scripts/heavy-run.sh` |
 | Server templates | Supervisor task, wave plan, strand start file, watcher, cron line, deny list (variant B) | `templates/server/` |
+| Local-step watcher | Polls the server over ssh and wakes the local chat session when a strand announces a step that must run locally (variant B) | `scripts/local-watch.sh` |
 | Secret scan helpers | Pre-push hook and a blocklist check for this repository's own contributors | `scripts/` |
 
 ## Settings
