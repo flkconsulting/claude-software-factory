@@ -12,7 +12,7 @@ Placeholders in this guide are written like `<this>`. Replace each one with your
 
 - A Linux server (Ubuntu 24.04 LTS recommended), x86 or ARM, at least 4 vCPU and 8 GB RAM.
 - A user with `sudo` for the one-time package installation. Normal work runs as a separate user without root (step 1).
-- Software on the server: `tmux`, `git`, `flock` (package `util-linux`), `cron`, Python 3.10 or newer, Node (for Claude Code), `gitleaks`.
+- Software on the server: `tmux`, `git`, `flock` (package `util-linux`), `cron`, Python 3.10 or newer, Claude Code, `gitleaks` 8.19 or newer.
 - Your own Claude login (step 3). Nobody can do this for you.
 - The plugin repository, as a clone or as a `git bundle` file (step 4).
 - On your laptop: `ssh` and `scp` access to the server.
@@ -29,13 +29,13 @@ If you run the scripts on macOS instead of Linux: `heavy-run.sh` uses `readlink 
 
 ## 2. Install the packages
 
-1. As the admin user, install what is missing: `sudo apt install tmux git util-linux cron python3`. Node comes from the official Claude Code installation guide (step 3), not from `apt` by default: the `apt` version of Node on Ubuntu may be older than Claude Code needs. Install `gitleaks` with the method you trust (package manager or the release page of the project).
-2. Check each tool as `<work-user>`: `command -v tmux git flock crontab python3 gitleaks`. Every name must print a path.
+1. As the admin user, install what is missing: `sudo apt install tmux git util-linux cron python3`. Node comes from the official Claude Code installation guide (step 3), not from `apt` by default: the `apt` version of Node on Ubuntu may be older than Claude Code needs. Install `gitleaks` 8.19 or newer with the method you trust. The `apt` package of Ubuntu 24.04 is older (8.16) and lacks the `gitleaks git` command the pre-push hook uses, so every push would fail: take the release archive from the project's release page, check it against the published checksums and put the binary into `/usr/local/bin`.
+2. Check each tool as `<work-user>`: `command -v tmux git flock crontab python3 gitleaks`. Every name must print a path. Then `gitleaks git --help` must print the help of that command, not "unknown command".
 3. Check the Python version: `python3 --version` must show 3.10 or newer.
 
 ## 3. Claude Code login: install and log in yourself
 
-1. Install Claude Code as `<work-user>` following the official installation guide. If the guide needs Node, install the version the official guide requires and check it with `node --version` before you go on.
+1. Install Claude Code as `<work-user>` following the official installation guide. The native installer puts `claude` into `~/.local/bin` and needs no Node; if you use a method that needs Node, install the version the official guide requires and check it with `node --version` before you go on.
 2. Start `claude` once and log in. **You do this yourself**, in your own session; no script and no agent does it for you, and no login data is ever written into a file of this repository.
 3. For a test server or a second server, use a **separate Claude account**. Test runs then do not use up the quota of projects that are running.
 4. Leave Claude Code with `/exit` once the login works.
@@ -45,8 +45,9 @@ If you run the scripts on macOS instead of Linux: `heavy-run.sh` uses `readlink 
 1. Pick one way to bring the plugin repository onto the server:
    - Clone it: `git clone <plugin-repo-url> <plugin-dir>`.
    - Or, for a server without access to the repository: on your laptop run `git bundle create <bundle-file> --all` in the plugin repository, copy it with `scp <bundle-file> <ssh-target>:<target-dir>/`, then on the server run `git clone <bundle-file> <plugin-dir>`.
-2. Start `claude` in any folder and install the plugin from the marketplace of that clone: `/plugin marketplace add <plugin-dir>`, then `/plugin install software-factory@claude-software-factory`.
-3. Restart Claude Code so the hooks take effect.
+2. Install the plugin from the marketplace of that clone, as `<work-user>` in the shell: `claude plugin marketplace add <plugin-dir>`, then `claude plugin install software-factory@claude-software-factory`. Inside a `claude` session the same works with `/plugin marketplace add <plugin-dir>` and `/plugin install software-factory@claude-software-factory`.
+3. Install the companion plugin the workflow needs: `claude plugin install superpowers@claude-plugins-official`.
+4. Check with `claude plugin list`: both plugins must be listed. Running sessions pick up the hooks only after a restart.
 
 ## 5. Put `sf-status` on the PATH
 
@@ -106,6 +107,13 @@ If the server may not reach your normal remote, give it a bare repository that y
 5. It proposes `sf-status project add <name> --title <title> --folder <project-folder> ...` and runs it only after you agree.
 6. It copies the wave plan template to `planning/wave-plan.md` and the supervisor task to `<state-dir>/supervisor/task.md`, with `<state-dir>` filled in.
 7. It shows the cron line and the additions for `settings.json`, and writes them only after your explicit consent. Step 8 explains the cron line, the section "Security limits" the permission additions.
+8. Allow the state folder for all sessions of `<work-user>`. Strands read their start file and write their report in `<state-dir>`, which lies outside their worktree; without this entry each strand stops at the question "Allow this read outside the working directories?", and nobody answers it. Add the absolute path to `~/.claude/settings.json` of `<work-user>`, next to the deny list:
+
+   ```json
+   "permissions": { "additionalDirectories": ["<state-dir>"] }
+   ```
+
+   Name only `<state-dir>`, not the whole home folder.
 
 ## 8. Cron
 
@@ -114,7 +122,7 @@ The cron job is what makes the server work on its own. It starts `sf-status run`
 1. Open the editor with `crontab -e`.
 2. Add the lines of `<plugin-dir>/templates/server/crontab.txt` with `<home>` replaced by the absolute home folder of `<work-user>` (cron does not expand `~` or `$HOME` there). Add every folder from step 5.4 that is not yet on the `PATH` line (for example the folder of `claude`, if it is not `<home>/.local/bin`). Replace `<state-dir>` with your state folder (default `~/.claude/software-factory/server`, spelled out as an absolute path) and `<plugin-dir>` by the plugin folder.
 3. Save and check with `crontab -l`.
-4. After three minutes look at `<state-dir>/run.log`. A line "server mode disabled" means `server.enabled` is still not `true`.
+4. After three minutes look at `<state-dir>/run.log` and `<state-dir>/STATUS.md`. A run that has nothing to report writes nothing to `run.log`: an empty log together with a fresh time stamp in `STATUS.md` (line "Generated") means the job works. A line "server mode disabled" means `server.enabled` is still not `true`.
 5. A cron run does not end with an error trace; a problem is one line in `run.log`.
 
 ## 9. First wave plan
@@ -126,7 +134,8 @@ The wave plan is the only source of approvals. The supervisor starts a strand on
 3. Leave the approval cell at `no` until you decided. To approve, write your own words into the cell: `yes - "<your quote>"`. Without a quote there is no `yes`.
 4. Write a start file for the strand with the skill `delegate-work` (it uses `templates/server/strand-start.md`), or let the supervisor do it for an approved row.
 5. To start a strand by hand: create its worktree first (`git -C <project-folder> worktree add -b <branch> <project-folder>-<short>`), then `sf-status launch --project <name> --short <short> --model <model> --worktree <project-folder>-<short> --topic <topic>`. `launch` refuses the project folder itself, so strands never share the main checkout.
-   A new worktree is a new folder for Claude Code, so the interactive `claude` of a strand may stop at the folder-trust dialog, where nobody answers. This guide does not state a verified way to pre-trust folders: check it during the first acceptance run. Right after the first launch run `tmux attach -t <project>-<short>`; if the dialog shows, accept it by hand once and note what is needed for later worktrees.
+   The folder-trust dialog appears the first time you start `claude` in the project folder (step 7); accept it there. In the acceptance run, worktrees created next to the project folder started without the dialog. Right after the first launch still run `tmux attach -t <project>-<short>` once: if the strand waits for any answer, give it by hand and note it.
+   A strand that builds on another strand's work ("starts when" names its report) gets a worktree made from the main branch, which does not contain the other branch yet. Make the first step of its start file `git merge --ff-only <other-branch>` and check the tests after it.
 6. For a start at a fixed time with a precondition, use `<plugin-dir>/templates/server/watcher.sh` (see `delegate-work`, section "Watcher").
 7. Run full test suites and builds through `<plugin-dir>/scripts/heavy-run.sh <command>`. It lets at most `server.heavy_slots` heavy runs go at once.
 
@@ -151,7 +160,7 @@ Costs shown in the board are a list-price equivalent, not an invoice.
 
 ## Answering questions
 
-Strands and the supervisor ask questions only when they are really unsure. Open questions are in the status board with an id.
+Strands and the supervisor ask questions only when they are really unsure. Open questions are in the status board with an id, from the next cron run on (the board is written once per run).
 
 1. Read the question, its background and the recommendation.
 2. Answer with: `sf-status answer --project <name> --id <question-id> "<your answer>"`.

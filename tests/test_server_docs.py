@@ -22,7 +22,8 @@ def test_server_setup_doc_sections():
 def test_server_doc_has_no_ip_or_hostname():
     text = (ROOT / "docs" / "05-server-setup.md").read_text(encoding="utf-8")
     assert not re.search(r"\b\d{1,3}(\.\d{1,3}){3}\b", text)
-    text = text.replace("software-factory@claude-software-factory", "")
+    for plugin in ("software-factory@claude-software-factory", "superpowers@claude-plugins-official"):
+        text = text.replace(plugin, "")
     assert not re.search(r"\b[\w.-]+@[\w-]+(\.[\w-]+)*\b", text)
 
 
@@ -48,7 +49,15 @@ def test_doc_security_wording_is_honest():
 
 def test_doc_worktree_trust_note():
     text = _doc()
-    assert "trust" in text.lower() and "first acceptance run" in text
+    assert "folder-trust dialog" in text and "acceptance run" in text
+
+
+def test_doc_acceptance_fixes():
+    text = _doc()
+    assert "8.19 or newer" in text and "gitleaks git --help" in text
+    assert '"additionalDirectories": ["<state-dir>"]' in text
+    assert "claude plugin list" in text and "superpowers@claude-plugins-official" in text
+    assert "git merge --ff-only <other-branch>" in text
 
 
 def test_setup_and_skill_wording_consistent():
