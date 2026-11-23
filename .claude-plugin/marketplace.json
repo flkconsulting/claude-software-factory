@@ -8,7 +8,7 @@
     {
       "name": "software-factory",
       "description": "A transferable way of working with Claude Code: guard hooks, session hand-over, and a setup workflow for new projects",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "source": "./",
       "author": {
         "name": "FLK Consulting UG"

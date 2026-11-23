@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented in this file.
 
-## Unreleased
+## [0.2.2]
 
 ### Changed
 - workflow-retrospective: session transcripts as a source, tool-before-text principle, review of always-loaded agent instructions.
