@@ -10,7 +10,7 @@ def load(name):
     return json.loads((ROOT / ".claude-plugin" / name).read_text(encoding="utf-8"))
 
 
-def test_version_0_2_0():
+def test_version_0_2_1():
     assert load("plugin.json")["version"] == "0.2.1"
     assert load("marketplace.json")["plugins"][0]["version"] == "0.2.1"
 
