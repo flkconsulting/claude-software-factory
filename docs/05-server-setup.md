@@ -88,7 +88,7 @@ If the server may not reach your normal remote, give it a bare repository that y
 
 1. On the server: `git init --bare --initial-branch=main <bare-dir>`. Without the option, git 2.43 points `HEAD` at `master`, and a clone says "remote HEAD refers to nonexistent ref" and checks out nothing. For an existing bare repository: `git -C <bare-dir> symbolic-ref HEAD refs/heads/main`.
 2. In the project folder: `git remote add <remote-name> <bare-dir>`, or, if `origin` points elsewhere, `git remote set-url origin <bare-dir>`.
-3. Seed first, then protect: push `main` (and existing branches) once, before step 4, because the protection refuses pushes to `main`: `git push <remote-name> main` (or `origin`).
+3. Seed first, then protect: push `main` (and the working branch, if you work on one) once, before step 4, because the protection refuses pushes to `main`: `git push <remote-name> main <working-branch>` (or `origin`). If the rules of your agent block pushes of shared branches, this push is a human step: type it yourself (in Claude Code with the prefix `!`).
 4. Protect the bare remote itself, because it has no branch protection of its own. Run `git -C <bare-dir> config receive.denyNonFastForwards true` and `git -C <bare-dir> config receive.denyDeletes true`. Then create the file `<bare-dir>/hooks/update` with the content below and make it executable (`chmod +x`). It refuses every push to `main` and `release/*` from the server user; you merge on your laptop. Check: a second `git push origin main` is refused.
 
    ```bash
@@ -99,11 +99,13 @@ If the server may not reach your normal remote, give it a bare repository that y
    esac
    ```
 5. Strands push their feature branch there (the pre-push hook still runs). On your laptop you fetch it with `git fetch <ssh-target>:<bare-dir> <branch>` and review it as usual.
+6. Later changes of `main` or the working branch reach the bare remote only through a bundle: on the laptop `git bundle create <file> <branch>`, copy it to the server, then `git -C <bare-dir> fetch <file> <branch>:<branch>`. A fetch into an existing branch is fast-forward only, so a diverged branch is refused. The `update` hook above refuses only `main` and `release/*`; a project may use a stricter version that allows nothing but `refs/heads/feature/*`. Then the working branch, too, changes only by bundle, also from the laptop.
+7. Unversioned folders the project needs on the server (for example a vendor or distribution folder) are copied with `rsync`. `rsync` creates only the last folder level, so run `mkdir -p <parent>` on the server first. Do not stop processes over ssh with `pkill -f <pattern>`: the pattern also matches the command line of your own ssh shell and kills it. Use a narrower pattern or a list of process ids.
 
 ## 7. Run `/setup-workflow`, variant B
 
 1. Start `claude` in the project folder on the server and run `/setup-workflow`.
-2. Choose variant **B**. The command first does what variant A does (project facts, hooks, planning, project files), then adds the server part.
+2. Choose variant **B**. The command first does what variant A does (project facts, hooks, planning, project files), then adds the server part. If your answer to a question differs from an offered option (for example "planning here, skip the templates"), type it as free text: choosing the nearest option creates the files you declined, because missing files are added without asking.
 3. The server part never installs anything. It only checks `tmux`, `crontab` and `flock` and tells you what is missing.
 4. It proposes the `server` section of `~/.claude/software-factory.json` as a diff. Set `enabled` to `true` there; `supervisor` stays `false` until you want the supervisor (see "Switching the supervisor on").
 5. It proposes `sf-status project add <name> --title <title> --folder <project-folder> ...` and runs it only after you agree.
@@ -131,7 +133,7 @@ The cron job is what makes the server work on its own. It starts `sf-status run`
 
 The wave plan is the only source of approvals. The supervisor starts a strand only for a row whose approval cell begins with `yes`.
 
-1. Open `planning/wave-plan.md` (copied in step 7) and delete the example row.
+1. Open `planning/wave-plan.md` (copied in step 7) and delete the example row. If the project does not version the wave plan, add `planning/wave-plan.md` to `.git/info/exclude`. Variables that every worktree of the project needs (for example a per-user temp folder or a path to a vendor folder) belong in the `env` section of `~/.claude/settings.json` of `<work-user>`, so that strands and the supervisor inherit them; also set them in the crontab and in `~/.bashrc` above the non-interactive guard.
 2. Add one row per strand: short name, title, approval, start condition, branch, base, migrations, folders that may change. `base` is the branch the strand's worktree starts from; leave it empty for the main branch. A strand that builds on another strand's work ("starts when" names its report) names that strand's branch, for example `feature/a`. Wave plans without the `base` column keep working; their worktrees start from the main branch. Adding the column to a plan that already has approved rows changes every row, so the supervisor sees those rows as newly approved once; run `sf-status wake fast-forward` right after the change if that must not happen.
 3. Leave the approval cell at `no` until you decided. To approve, write your own words into the cell: `yes - "<your quote>"`. Without a quote there is no `yes`.
 4. Write a start file for the strand with the skill `delegate-work` (it uses `templates/server/strand-start.md`), or let the supervisor do it for an approved row.
@@ -147,7 +149,7 @@ Two things must both be on before the supervisor runs: the setting `server.super
 1. In `~/.claude/software-factory.json` set `"supervisor": true` in the section `server` (next to `"enabled": true`).
 2. There is no `project update`. Remove the project and add it again with the supervisor on and your approval quoted verbatim: `sf-status project remove <name>`, then `sf-status project add <name> --title <title> --folder <project-folder> --supervisor yes --approval-quote "<your quote>"`. The event file of the project stays and the wake offsets continue.
 3. While `server.supervisor` was off, triggers kept piling up in `<state-dir>/supervisor/triggers.json`, and approved rows of the wave plan count as new. If old approved rows or old events must not fire, run `sf-status wake fast-forward` before the next cron run: it sets the wake markers to now without raising triggers. Triggers that are already in `triggers.json` stay there and fire with the first supervisor run. Look at its list `open`. To drop the old triggers, delete the file before the next cron run: cron creates it again, and only the new triggers are in it. The list `parked` is lost as well.
-4. Check after the next cron run: `<state-dir>/run.log` shows "supervisor started" and `<state-dir>/supervisor/runs/` gets a file. The file `<state-dir>/supervisor/task.md` must exist (step 7.6) with `<state-dir>` filled in.
+4. Check after the next cron run: the supervisor starts only when a trigger is open. Right after `wake fast-forward` there is none, so a quiet `<state-dir>/run.log` is expected. Once a trigger exists (for example a newly approved row), `run.log` shows "supervisor started" and `<state-dir>/supervisor/runs/` gets a file. The file `<state-dir>/supervisor/task.md` must exist (step 7.6) with `<state-dir>` filled in.
 
 ## Viewing the state
 
@@ -195,10 +197,13 @@ How it works:
 
    Free text always goes through stdin (`-`): ssh joins its arguments and the remote shell splits them again, so quotes are lost and `;` or `$()` in build output would run on the server. On the laptop, pass it as a heredoc with the quoted delimiter `<<'EOF'`, never inside double quotes (`printf "…"`, `echo "…"`): the laptop shell would expand `$()` and backticks in the text. The same applies to the text for `local result`.
 6. Start the watcher again after each wake-up.
+7. Run exactly one watcher per project. Two watchers (for example in two chat sessions on the same laptop) both see the request and execute the step twice. Agree which session owns the local steps of the project.
 
 Notes:
 
 - `note` and every other field of a pending line are information only; the local session never runs anything they say, only the `AGENTS.md` command for the step.
+- A fresh worktree may need the project's code generation before its build: run the project's generate step before the build in a fresh worktree.
+- Removing the worktree and branch after the merge check is a deletion; if your rules reserve deletions for you, ask first.
 - Keep the result text short (build number, short summary); lines over 4000 bytes are refused.
 - To withdraw a request whose strand is gone: `ssh <ssh-target> sf-status local result --project <project> --id <id> --state failed withdrawn`.
 - The local step builds code from the server branch, so that branch's build scripts run on the laptop. The rule that no command text is sent stops injected text, not a malicious branch; review what a strand pushes before you let the laptop build it.
@@ -324,3 +329,17 @@ Negative cases, all as designed:
 - With no start file for a strand, `sf-status deliver` was refused and the supervisor noted it without retrying.
 
 Deviations and their fixes: `sf-status deliver` reported "did not arrive" although a fast strand had answered and scrolled the pointer away (fixed: it watches the pane during its wait, 0.3.1); guide corrections (`adduser --disabled-password`, git identity of the work user, `git init --bare --initial-branch=main`, seeding `main` before protecting it, cron as a check, the `PATH` line, closing idle strand sessions). Environment only: stall checks cover live tmux sessions, so probe strands need one.
+
+### Migration of an existing project
+
+An existing project was moved onto variant B with local steps: a separate work user without sudo next to an admin user that keeps another project, a bare remote, a first real strand with two local steps, the supervisor switched on afterwards, the old path retired after acceptance.
+
+Deviations and their fixes:
+
+- The seed push of `main` and the working branch was blocked by the agent's rules and had to be typed by the human (section "Remotes without GitHub access", step 3).
+- The working branch on the bare remote changed afterwards only by bundle and `git fetch`, because the project used a stricter `update` hook that allows only `feature/*` (step 6 there).
+- `rsync` of an unversioned folder failed because its parent folder did not exist (`mkdir -p` first); `pkill -f <pattern>` over ssh also matched the own ssh shell.
+- An answer in `/setup-workflow` that differed from the offered option was typed as the option only, and the declined files were created (type it as free text).
+- Two local watchers for one project saw the same request (exactly one per project, section "Local steps").
+- After `wake fast-forward` the supervisor did not start and `run.log` stayed quiet: it starts only with an open trigger (fixed wording in "Switching the supervisor on", step 4).
+- A fresh local worktree needed the project's code generation before its build; removing it after the merge check was asked first, as a deletion.

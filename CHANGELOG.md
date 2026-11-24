@@ -4,6 +4,10 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- `docs/05-server-setup.md`: lessons from migrating an existing project: seed push as a human step and later base sync by bundle and `git fetch`, `mkdir -p` before `rsync`, narrower `pkill` patterns, free-text answers in `/setup-workflow`, worktree-wide `env` and an untracked wave plan, exactly one local watcher per project, a code generation hint and asking before cleanup deletions, correct wording that the supervisor starts only with an open trigger.
+- `docs/05-server-setup.md`: evidence paragraph "Migration of an existing project".
+
 ## [0.3.1]
 
 ### Fixed
