@@ -300,3 +300,27 @@ What the run showed beyond the plan:
 - The first strand stopped at a permission question for reading its start file outside the worktree. The stall check reported it exactly once after `stall_minutes`, the supervisor asked the human instead of answering the prompt, and nothing was restarted. The fix is step 7.8 (state folder in `additionalDirectories`).
 - Strand B read the answer to its question from the event file itself and finished before the next supervisor run, so the supervisor did not deliver it (correctly: the strand was done). The delivery path `sf-status deliver` is covered by the tests, not by this run.
 - Bare remote: a push to `main` was refused by the `update` hook, a clean feature push went through, a file with a fake key was stopped by the pre-push hook.
+
+### Local steps dry run
+
+The section "Local steps" was run on a second fresh server of the same class with the same sample application: one strand on Haiku with one local step (`mac-tests` in `AGENTS.md`), supervisor on, `stall_minutes` 5, `local_notice_hours` 1, the watcher on the local machine with a 30 s interval. Happy path, shortened:
+
+```text
+local_request <strand>-l1 mac-tests        (strand raised it, then reported waiting "local <strand>-l1")
+watcher exit 10 after 23 s                 (the pending line on stdout)
+local result ok "1 passed"                 (local session: fetch, worktree, ff-only to the commit, the AGENTS.md command)
+supervisor trigger local:<strand>-l1       (next cron run, about 3 min)
+delivered                                  (follow-up 1 in the strand's pane)
+report done "<STRAND> DONE: mac-tests ok"  (under 20 s after delivery)
+```
+
+Negative cases, all as designed:
+
+- An unknown step name ran nothing locally and ended as `failed` with "unknown step <name>".
+- A commit that is not the head of `origin/<branch>` was refused with exit 1 and no event; a branch name starting with `-` was refused by the schema.
+- A second request for a strand with an open one was refused, naming the open id; after `failed` the next id counted on (`-l2`). Withdrawing with `--state failed withdrawn` worked once, a second time it was refused.
+- The watcher exited 11 on an ssh failure and 12 at its maximum duration, never 0.
+- A strand waiting for `local <id>` was not stall-checked while the request was open (about one hour); a strand waiting for something else was. After `local_notice_hours` exactly one warning notice appeared for the request; once the result was in, it left the board (the event stays) and the stall check resumed (one `stall` event at the first cron run after `stall_minutes`; the supervisor judged it and restarted nothing).
+- With no start file for a strand, `sf-status deliver` was refused and the supervisor noted it without retrying.
+
+Deviations and their fixes: `sf-status deliver` reported "did not arrive" although a fast strand had answered and scrolled the pointer away (fixed: it watches the pane during its wait, 0.3.1); guide corrections (`adduser --disabled-password`, git identity of the work user, `git init --bare --initial-branch=main`, seeding `main` before protecting it, cron as a check, the `PATH` line, closing idle strand sessions). Environment only: stall checks cover live tmux sessions, so probe strands need one.

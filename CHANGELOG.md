@@ -9,6 +9,7 @@ All notable changes to this project are documented in this file.
 
 ### Changed
 - `docs/05-server-setup.md`: corrections from a dry run on a fresh server: non-interactive `adduser`, git identity of the work user, bare remote with `--initial-branch=main` and seeding `main` before protecting it, cron section as a check of what `/setup-workflow` wrote (manual `crontab -e` as fallback), `PATH` for the non-interactive ssh shell, closing idle strand sessions.
+- `docs/05-server-setup.md`: evidence paragraph "Local steps dry run" (happy path, negative cases, deviations).
 
 ## [0.3.0]
 
