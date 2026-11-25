@@ -36,7 +36,12 @@ def test_default_home_is_path_home(monkeypatch, tmp_path):
 def test_reads_warn_and_thresholds(tmp_path):
     write_cfg(tmp_path, {"mode": "warn", "context_thresholds": [1000, 2000]})
     cfg = load_config(tmp_path)
-    assert cfg == Config("warn", (1000, 2000), tmp_path / ".claude" / "software-factory" / "state")
+    assert cfg == Config(
+        "warn",
+        (1000, 2000),
+        tmp_path / ".claude" / "software-factory" / "state",
+        tmp_path / ".claude" / "reminders.md",
+    )
 
 
 def test_invalid_json_gives_defaults(tmp_path):
@@ -97,3 +102,21 @@ def test_valid_thresholds_with_bad_mode_keeps_thresholds(tmp_path):
     cfg = load_config(tmp_path)
     assert cfg.mode == "block"
     assert cfg.thresholds == (10, 20)
+
+
+def test_reminders_file_default(tmp_path):
+    cfg = load_config(tmp_path)
+    assert cfg.reminders_file == tmp_path / ".claude" / "reminders.md"
+
+
+def test_reminders_file_override(tmp_path):
+    write_cfg(tmp_path, {"reminders_file": "~/x/r.md"})
+    cfg = load_config(tmp_path)
+    assert cfg.reminders_file == tmp_path / "x" / "r.md"
+
+
+def test_reminders_file_bad_value_gives_default(tmp_path):
+    for value in (5, ""):
+        write_cfg(tmp_path, {"reminders_file": value})
+        cfg = load_config(tmp_path)
+        assert cfg.reminders_file == tmp_path / ".claude" / "reminders.md", value

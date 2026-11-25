@@ -19,6 +19,7 @@ class Config:
     mode: str
     thresholds: tuple[int, int]
     state_dir: Path
+    reminders_file: Path
 
 
 def _valid_thresholds(value) -> bool:
@@ -30,7 +31,8 @@ def _valid_thresholds(value) -> bool:
 
 
 def load_config(home: Path | None = None) -> Config:
-    base = (home if home is not None else Path.home()) / ".claude"
+    home_dir = home if home is not None else Path.home()
+    base = home_dir / ".claude"
     state_dir = base / "software-factory" / "state"
     data: dict = {}
     try:
@@ -45,4 +47,18 @@ def load_config(home: Path | None = None) -> Config:
         mode = DEFAULT_MODE
     raw = data.get("context_thresholds")
     thresholds = (raw[0], raw[1]) if _valid_thresholds(raw) else DEFAULT_THRESHOLDS
-    return Config(mode=mode, thresholds=thresholds, state_dir=state_dir)
+
+    reminders_file = base / "reminders.md"
+    raw_path = data.get("reminders_file")
+    if isinstance(raw_path, str) and raw_path:
+        # Expanded by hand against home, not expanduser, so tests stay isolated.
+        if raw_path == "~" or raw_path.startswith("~/"):
+            reminders_file = home_dir / raw_path[1:].lstrip("/")
+        else:
+            reminders_file = Path(raw_path)
+    return Config(
+        mode=mode,
+        thresholds=thresholds,
+        state_dir=state_dir,
+        reminders_file=reminders_file,
+    )
