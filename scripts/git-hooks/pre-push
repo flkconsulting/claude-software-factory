@@ -11,6 +11,11 @@ if ! command -v gitleaks >/dev/null 2>&1; then
   exit 1
 fi
 
+# gitleaks 8.30 exits 0 when its git call fails ("stderr is not empty"): the scan is then
+# incomplete, so an ERR line in its output aborts the push as well (fail closed).
+log=$(mktemp)
+trap 'rm -f "$log"' EXIT
+
 failed=0
 while read -r _local_ref local_sha _remote_ref remote_sha; do
   [ "$local_sha" = "$null" ] && continue # branch deletion: nothing to scan
@@ -19,8 +24,15 @@ while read -r _local_ref local_sha _remote_ref remote_sha; do
   else
     range="$local_sha --not --remotes" # new branch: only commits not on any remote branch
   fi
-  if ! gitleaks git --redact --verbose --no-banner --log-level warn --log-opts="$range" "$root" >&2; then
+  if ! gitleaks git --redact --verbose --no-banner --no-color --log-level warn --log-opts="$range" "$root" >"$log" 2>&1; then
+    cat "$log" >&2
     echo "pre-push: gitleaks reports possible secrets (values redacted, see above)." >&2
+    failed=1
+  else
+    cat "$log" >&2
+  fi
+  if grep -qE '^[^ ]+ ERR ' "$log"; then
+    echo "pre-push: gitleaks reported an error, scan incomplete (see above)." >&2
     failed=1
   fi
   # shellcheck disable=SC2086 # $range is a deliberate word-split list of revision arguments
