@@ -18,7 +18,8 @@ Save it as `start-<short>.md` in a scratch location outside the repo (or in the 
 5. **Working folder and branch:** a new git worktree on its own branch; never work in the main checkout.
 6. **Steps**, numbered, each with its check (commands from the "Commands" section of the project `AGENTS.md`).
 7. **Do not:** the fixed limits (section 3) plus task-specific ones.
-8. **Report:** path of the report file; the **first line** is exactly `<TOPIC> DONE` or `<TOPIC> BLOCKED` (upper case, fixed). Structure: status first, done with evidence (commits, test counts), decisions with reasons, open points, next step, what the user must do or decide.
+8. **Report:** path of the report file; the **first line** is exactly `<TOPIC> DONE` or `<TOPIC> BLOCKED` (upper case, fixed), and `<TOPIC> IN PROGRESS` while the work runs. The second line names the last follow-up handled: `follow-up <n>`, or `follow-up -` before the first. A new follow-up resets the first line to `<TOPIC> IN PROGRESS` before anything else. Structure: status first, done with evidence (commits, test counts), decisions with reasons, open points, next step, what the user must do or decide.
+9. **Checkpoint:** before a wait of more than an hour or a long measurement, write into the report what comes after it: the steps, their commands, open follow-ups. After an automatic context summary the session resumes from the checkpoint and the start file.
 
 Keep the file short - see the briefing rule (`templates/rules/briefing.md`, installed as `.claude/rules/briefing.md`): reference instead of copy, about 3 KB without the fixed limits. Check with `wc -c`.
 
@@ -41,11 +42,11 @@ Keep the file short - see the briefing rule (`templates/rules/briefing.md`, inst
 ## 4. Follow-up and status
 
 - **Follow-up to a running session:** append it as a numbered item to the start file (with the quote, if it is an approval) and send a short pointer message. Withdraw the same way and mark the old item WITHDRAWN. After three or more additions rewrite the start file as one text and keep the old one as an archive copy.
-- **Status:** read the first line of each report file (`head -n 1`), then the open points. Tell the user one line per task (done / running / blocked, what is next), then only the decisions that lie with them. Do not retell reports.
+- **Status:** read the first two lines of each report file (`head -n 2`), then the open points. `IN PROGRESS` means running; a `DONE` whose `follow-up <n>` is older than the last follow-up in the start file is stale and means running too. Tell the user one line per task (done / running / blocked, what is next), then only the decisions that lie with them. Do not retell reports.
 - Close finished sessions once the report says DONE, the branch is pushed and nothing is left running.
 - Questions to the user: one sentence for the question, background with line breaks, one line per option with its consequence, a short recommendation with the reason.
 
-**Why:** Every word in a brief is re-read by the model at every step, so long briefs cost money and dilute what matters.
+**Why:** Every word in a brief is re-read by the model at every step, so long briefs cost money and dilute what matters. A `DONE` left standing after a follow-up makes every watcher that reads the first line treat a running session as finished. A long wait often ends in an automatic context summary; the checkpoint keeps the plan for afterwards in a file.
 
 ## 5. Server mode
 

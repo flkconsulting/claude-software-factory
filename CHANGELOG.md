@@ -5,6 +5,7 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 
 ### Changed
+- Report first line while a session works: `<TOPIC> IN PROGRESS`; a new follow-up sets it back before anything else, the second line names the last follow-up handled (`follow-up <n>`). Before a wait of more than an hour or a long measurement the session writes a checkpoint into its report (`skills/delegate-work`, `templates/server/strand-start.md`, `templates/server/supervisor-task.md`).
 - `docs/05-server-setup.md`: lessons from migrating an existing project: seed push as a human step and later base sync by bundle and `git fetch`, `mkdir -p` before `rsync`, narrower `pkill` patterns, free-text answers in `/setup-workflow`, worktree-wide `env` and an untracked wave plan, exactly one local watcher per project, a code generation hint and asking before cleanup deletions, correct wording that the supervisor starts only with an open trigger.
 - `docs/05-server-setup.md`: evidence paragraph "Migration of an existing project".
 - `templates/server/supervisor-task.md`: the supervisor runs `git fetch origin` in the project folder and creates new worktrees from `origin/<base>` (or `origin/<main branch>`), so a base sync by bundle into the bare remote is enough.

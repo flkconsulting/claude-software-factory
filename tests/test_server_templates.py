@@ -65,6 +65,13 @@ def test_strand_start_parts_and_commands():
                    "<state-dir>/reports/<project>/<short>.md", "<TOPIC> DONE", "<TOPIC> BLOCKED"):
         assert needle in text, needle
     assert "--dangerously-skip-permissions" in text
+    assert "<TOPIC> IN PROGRESS" in text and "follow-up <n>" in text
+    assert "checkpoint" in text.lower()
+
+
+def test_supervisor_delivers_follow_up_reset():
+    text = read("supervisor-task.md")
+    assert "<TOPIC> IN PROGRESS" in text
 
 
 def _denied(command, patterns):

@@ -37,6 +37,8 @@ def test_delegate_work_contract():
     text = (ROOT / "skills/delegate-work/SKILL.md").read_text(encoding="utf-8")
     assert "<TOPIC> DONE" in text and "<TOPIC> BLOCKED" in text
     assert "model" in text and "worktree" in text
+    assert "<TOPIC> IN PROGRESS" in text and "follow-up <n>" in text
+    assert "checkpoint" in text.lower()
 
 
 def test_pre_check_contract():

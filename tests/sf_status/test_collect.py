@@ -59,6 +59,17 @@ def test_report_file_first_line_becomes_event(cfg, state, projects, fake):
     assert len(of_kind(state, "report")) == 2
 
 
+
+def test_in_progress_line_rearms_done(cfg, state, projects, fake):
+    write_report(state, "a", "A DONE")
+    collect.collect(cfg, projects, NOW)
+    write_report(state, "a", "A IN PROGRESS")
+    collect.collect(cfg, projects, NOW + 60)
+    assert [e["state"] for e in of_kind(state, "report")] == ["done"]
+    write_report(state, "a", "A DONE")
+    collect.collect(cfg, projects, NOW + 120)
+    assert [e["state"] for e in of_kind(state, "report")] == ["done", "done"]
+
 def running(cfg, state, projects, fake, pane="busy\n"):
     report(state, "a")
     fake.sessions = [("alpha-a", projects[0].folder + "-a")]
