@@ -35,9 +35,11 @@ def test_hooks_registered():
     assert len(ups) == 1
     assert "matcher" not in ups[0]
     ups_cmds = [h for h in ups[0]["hooks"] if h["type"] == "command"]
-    assert len(ups_cmds) == 1
-    assert ups_cmds[0]["command"] == 'python3 "${CLAUDE_PLUGIN_ROOT}/hooks/context_load.py"'
+    assert [h["command"] for h in ups_cmds] == [
+        'python3 "${CLAUDE_PLUGIN_ROOT}/hooks/context_load.py"',
+        'python3 "${CLAUDE_PLUGIN_ROOT}/hooks/reminders.py"',
+    ]
 
-    for command in (pre_cmds[0]["command"], ups_cmds[0]["command"]):
+    for command in [pre_cmds[0]["command"]] + [h["command"] for h in ups_cmds]:
         script = _resolve(_command_script(command))
         assert script.is_file(), script
