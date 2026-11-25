@@ -9,6 +9,7 @@ All notable changes to this project are documented in this file.
 - `reminders.py --notify`: one macOS notification for the due entries of all projects.
 - Template `templates/launchd/reminders.plist`: launchd agent `software-factory.reminders`, daily at 09:07 and at login.
 - `/setup-workflow` step 3: optional reminders file and, on macOS after consent, the notification agent (with the way back).
+- After a plugin update, rerun the setup step (or copy `reminders.py` and `sf_config.py` again) so the copy in `~/.claude/software-factory/bin/` is current.
 - Setting `reminders_file` (default `~/.claude/reminders.md`); global rule "Reminders across sessions" in `templates/CLAUDE.md`.
 
 ### Changed

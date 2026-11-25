@@ -72,7 +72,7 @@ Variant B (Stage 2) runs longer work on a dedicated server: strands in tmux, a c
 
 ## Settings
 
-Per-user settings live in `~/.claude/software-factory.json`; hook state in `~/.claude/software-factory/state/` (context-load markers and `reminders-<session>-<date>` markers, pruned after their day).
+Per-user settings live in `~/.claude/software-factory.json`; hook state in `~/.claude/software-factory/state/` (context-load markers, and `reminders-<session>-<date>` markers that are pruned after their day).
 
 ```json
 {
@@ -102,7 +102,12 @@ A reminder that must outlive a session goes as one line into the reminders file 
 - `<project>` is the name of the folder that holds `.git` (case-insensitive); `*` applies to every project.
 - The reminders hook reports open entries that are due (the day is today or earlier) at the first prompt of a session, once per session and day. Outside a repository only `*` entries are reported. A missing file means no output.
 - `python3 hooks/reminders.py --notify` shows one macOS notification for the due entries of all projects. `/setup-workflow` can install it as a launchd agent (`software-factory.reminders`, daily at 09:07 and at login) after your consent; it copies `reminders.py` and `sf_config.py` to `~/.claude/software-factory/bin/`.
-- Way back for the agent: `launchctl bootout gui/$(id -u)/software-factory.reminders`, then delete `~/Library/LaunchAgents/software-factory.reminders.plist` (and, if you like, `~/.claude/software-factory/bin/`).
+- After a plugin update, rerun the setup step (or copy the two files again) so the copy in `~/.claude/software-factory/bin/` is current.
+- Way back for the agent: `launchctl bootout gui/$(id -u)/software-factory.reminders`, then delete `~/Library/LaunchAgents/software-factory.reminders.plist`. Optional cleanup: `~/.claude/software-factory/bin/` and the log `~/.claude/software-factory/state/reminders-launchd.log`.
+
+### Known limitation
+
+If the context-load hook holds back the first prompt of a day (block mode, threshold 2), the reminders shown with that prompt are lost for that session that day; the daily notification still covers them.
 
 ## Documentation
 
