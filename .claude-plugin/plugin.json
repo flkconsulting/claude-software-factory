@@ -1,7 +1,7 @@
 {
   "name": "software-factory",
   "description": "A transferable way of working with Claude Code: guard hooks, session hand-over, and a setup workflow for new projects",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "author": {
     "name": "FLK Consulting UG"
   },
@@ -13,6 +13,7 @@
     "hooks",
     "model-choice",
     "context-load",
+    "reminders",
     "setup"
   ]
 }

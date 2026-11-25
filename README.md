@@ -43,7 +43,8 @@ It asks one question at a time, detects project facts from the repository, and s
 
 - `AGENTS.md` and `CLAUDE.md` for the project, and an optional `planning/` folder (including the empty error index `planning/ERRORS.jsonl`);
 - a proposal for `~/.claude/CLAUDE.md` and `~/.claude/rules/`;
-- the per-user settings file `~/.claude/software-factory.json`.
+- the per-user settings file `~/.claude/software-factory.json`;
+- on request, the reminders file `~/.claude/reminders.md` and, on macOS, the daily notification agent (see [Reminders](#reminders)).
 
 ## Server
 
@@ -55,6 +56,7 @@ Variant B (Stage 2) runs longer work on a dedicated server: strands in tmux, a c
 | --- | --- | --- |
 | Model-choice hook | Rejects (block) or warns about helper-agent dispatches that do not name a model | `hooks/model_choice.py` |
 | Context-load hook | Reports once per threshold when a session history gets large and asks for a handover | `hooks/context_load.py` |
+| Reminders hook | Tells the session about due reminders of its project, once a day; optional daily macOS notification | `hooks/reminders.py` |
 | `/setup-workflow` | Guided installation of rules, settings and project templates | `commands/setup-workflow.md` |
 | Skill `delegate-work` | Start file, limits, model choice, worktree, report format for delegated work | `skills/delegate-work/` |
 | Skill `ship-release` | Release checklist with backup, way back and acceptance list | `skills/ship-release/` |
@@ -70,20 +72,37 @@ Variant B (Stage 2) runs longer work on a dedicated server: strands in tmux, a c
 
 ## Settings
 
-Per-user settings live in `~/.claude/software-factory.json`; hook state in `~/.claude/software-factory/state/`.
+Per-user settings live in `~/.claude/software-factory.json`; hook state in `~/.claude/software-factory/state/` (context-load markers and `reminders-<session>-<date>` markers, pruned after their day).
 
 ```json
 {
   "mode": "block",
-  "context_thresholds": [150000, 300000]
+  "context_thresholds": [150000, 300000],
+  "reminders_file": "~/.claude/reminders.md"
 }
 ```
 
 - `mode`: `block` (default) enforces the rules; `warn` only shows hints.
 - `context_thresholds`: two increasing token counts. The first asks for a handover at the next natural break, the second asks for one immediately.
+- `reminders_file`: path of the reminders file (default `~/.claude/reminders.md`). Give an absolute path or one starting with `~/`; relative paths resolve against the working folder of the process. A missing file means no output. Format: see [Reminders](#reminders).
 - `server` (optional, variant B): a section with `enabled` (default `false`) and further settings; see [Server setup](docs/05-server-setup.md). Without it nothing of Stage 2 is active.
 
 An unreadable or invalid file falls back to the defaults; a hook never fails with an error.
+
+## Reminders
+
+A reminder that must outlive a session goes as one line into the reminders file (default `~/.claude/reminders.md`, setting `reminders_file`):
+
+```text
+- [ ] 2026-12-04 | my-project | check the acceptance of release train 2
+- [ ] 2026-12-01 | * | renew the domain
+```
+
+- Format: `- [ ] YYYY-MM-DD | <project or *> | <text>`. `[x]` marks an entry done; lines that do not match are ignored.
+- `<project>` is the name of the folder that holds `.git` (case-insensitive); `*` applies to every project.
+- The reminders hook reports open entries that are due (the day is today or earlier) at the first prompt of a session, once per session and day. Outside a repository only `*` entries are reported. A missing file means no output.
+- `python3 hooks/reminders.py --notify` shows one macOS notification for the due entries of all projects. `/setup-workflow` can install it as a launchd agent (`software-factory.reminders`, daily at 09:07 and at login) after your consent; it copies `reminders.py` and `sf_config.py` to `~/.claude/software-factory/bin/`.
+- Way back for the agent: `launchctl bootout gui/$(id -u)/software-factory.reminders`, then delete `~/Library/LaunchAgents/software-factory.reminders.plist` (and, if you like, `~/.claude/software-factory/bin/`).
 
 ## Documentation
 

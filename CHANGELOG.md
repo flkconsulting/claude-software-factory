@@ -4,6 +4,13 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added
+- Reminders hook `hooks/reminders.py` (UserPromptSubmit): reports open entries of the reminders file that are due for the project of the session (and `*`), once per session and day; marker files `reminders-<session>-<date>` in the state folder.
+- `reminders.py --notify`: one macOS notification for the due entries of all projects.
+- Template `templates/launchd/reminders.plist`: launchd agent `software-factory.reminders`, daily at 09:07 and at login.
+- `/setup-workflow` step 3: optional reminders file and, on macOS after consent, the notification agent (with the way back).
+- Setting `reminders_file` (default `~/.claude/reminders.md`); global rule "Reminders across sessions" in `templates/CLAUDE.md`.
+
 ### Changed
 - Report first line while a session works: `<TOPIC> IN PROGRESS`; a new follow-up sets it back before anything else, the second line names the last follow-up handled (`follow-up <n>`). Before a wait of more than an hour or a long measurement the session writes a checkpoint into its report (`skills/delegate-work`, `templates/server/strand-start.md`, `templates/server/supervisor-task.md`).
 - `docs/05-server-setup.md`: lessons from migrating an existing project: seed push as a human step and later base sync by bundle and `git fetch`, `mkdir -p` before `rsync`, narrower `pkill` patterns, free-text answers in `/setup-workflow`, worktree-wide `env` and an untracked wave plan, exactly one local watcher per project, a code generation hint and asking before cleanup deletions, correct wording that the supervisor starts only with an open trigger.
