@@ -1,9 +1,16 @@
 import json
+import os
 import subprocess
 import sys
+from datetime import date
 from pathlib import Path
 
+import pytest
+
 HOOK = Path(__file__).resolve().parent.parent / "hooks" / "reminders.py"
+sys.path.insert(0, str(HOOK.parent))
+import reminders  # noqa: E402
+
 TAIL = ("Tell the user about these at the start of your answer. Mark an entry done "
         "([x]) only when the user says so or the task is shown to be done.")
 
@@ -153,11 +160,6 @@ def test_bad_stdin_silent(tmp_path):
 
 # --- Task 3: --notify and marker handling -----------------------------------
 
-sys.path.insert(0, str(HOOK.parent))
-import reminders  # noqa: E402
-
-from datetime import date  # noqa: E402
-
 
 def test_notify_text_three_and_more():
     es = [reminders.Entry(date(2026, 12, 1), f"P{i}", f"t{i}") for i in range(5)]
@@ -180,7 +182,7 @@ def notify(home, tmp_path, platform="darwin", fake=True, today="2026-12-05"):
         f = bindir / "osascript"
         f.write_text(f'#!/bin/sh\nprintf "%s\\n" "$@" > "{out}"\n')
         f.chmod(0o755)
-    env = {"HOME": str(home), "PATH": f"{bindir}:/usr/bin:/bin",
+    env = {"HOME": str(home), "PATH": str(bindir) if not fake else f"{bindir}:/usr/bin:/bin",
            "SF_REMINDERS_TODAY": today, "SF_REMINDERS_PLATFORM": platform}
     r = subprocess.run([sys.executable, str(HOOK), "--notify"], capture_output=True,
                        text=True, env=env, timeout=30)
@@ -226,7 +228,6 @@ def test_other_argv_silent(tmp_path):
 
 
 def test_marker_check_error_still_prints(tmp_path):
-    import os
     a = repo(tmp_path, "Alpha")
     write(tmp_path, "- [ ] 2026-12-01 | Alpha | x\n")
     sd = state_dir(tmp_path)
@@ -234,7 +235,7 @@ def test_marker_check_error_still_prints(tmp_path):
     sd.chmod(0)
     try:
         if os.access(sd, os.X_OK):
-            return  # running as root: cannot provoke the error
+            pytest.skip("running as root: cannot provoke the error")
         r = run(call(a), tmp_path)
     finally:
         sd.chmod(0o755)
