@@ -7,6 +7,11 @@ All notable changes to this project are documented in this file.
 ### Changed
 - `docs/05-server-setup.md`: lessons from migrating an existing project: seed push as a human step and later base sync by bundle and `git fetch`, `mkdir -p` before `rsync`, narrower `pkill` patterns, free-text answers in `/setup-workflow`, worktree-wide `env` and an untracked wave plan, exactly one local watcher per project, a code generation hint and asking before cleanup deletions, correct wording that the supervisor starts only with an open trigger.
 - `docs/05-server-setup.md`: evidence paragraph "Migration of an existing project".
+- `templates/server/supervisor-task.md`: the supervisor runs `git fetch origin` in the project folder and creates new worktrees from `origin/<base>` (or `origin/<main branch>`), so a base sync by bundle into the bare remote is enough.
+- `docs/05-server-setup.md`: project folder after a base sync, prompt suggestions in strand panes, stopping the old watcher.
+
+### Fixed
+- `scripts/local-watch.sh`: `kill` ends the watcher at once, also during its poll interval (the sleep is waited for in the background).
 
 ## [0.3.1]
 

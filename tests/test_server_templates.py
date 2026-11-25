@@ -162,6 +162,7 @@ def test_supervisor_task_model_worktree_and_answers():
     text = read("supervisor-task.md")
     assert "**Model:**" in text and "start file" in text
     assert "git worktree add -b" in text and "<project-folder>-<short>" in text
+    assert "git fetch origin" in text and "origin/<base>" in text
     assert "never the project folder" in text
     assert "<state-dir>" in text
     assert "answer:<question-id>" in text and len(text.encode("utf-8")) <= 6144

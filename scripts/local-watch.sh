@@ -85,5 +85,10 @@ while true; do
     echo "local-watch.sh: maximum duration reached (${max}s)" >&2
     exit 12
   fi
-  sleep "$interval"
+  # Sleep in the background and wait for it: bash runs the TERM/INT trap only after a
+  # foreground child ends, so a plain `kill <pid>` would otherwise wait out the interval.
+  sleep "$interval" &
+  pid=$!
+  wait "$pid"
+  pid=""
 done

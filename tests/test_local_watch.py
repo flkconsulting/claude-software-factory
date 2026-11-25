@@ -133,3 +133,17 @@ def test_ssh_failure_shows_last_stderr_line(fake):
     r = run(["host", "alpha"], e)
     assert r.returncode == 11
     assert "ssh failed (exit 127): bash: sf-status: command not found" in r.stderr
+
+
+def test_term_during_interval_exits_at_once(fake):
+    e, calls = fake(["empty"], SF_LOCAL_WATCH_INTERVAL="30")
+    p = subprocess.Popen(["bash", str(SCRIPT), "host", "alpha"], env=e, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    deadline = time.time() + 10
+    while count(calls) < 1 and time.time() < deadline:
+        time.sleep(0.05)
+    time.sleep(0.3)
+    start = time.time()
+    p.terminate()
+    rc = p.wait(timeout=5)
+    assert rc == 130
+    assert time.time() - start < 3

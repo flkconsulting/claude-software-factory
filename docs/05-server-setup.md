@@ -99,7 +99,7 @@ If the server may not reach your normal remote, give it a bare repository that y
    esac
    ```
 5. Strands push their feature branch there (the pre-push hook still runs). On your laptop you fetch it with `git fetch <ssh-target>:<bare-dir> <branch>` and review it as usual.
-6. Later changes of `main` or the working branch reach the bare remote only through a bundle: on the laptop `git bundle create <file> <branch>`, copy it to the server, then `git -C <bare-dir> fetch <file> <branch>:<branch>`. A fetch into an existing branch is fast-forward only, so a diverged branch is refused. The `update` hook above refuses only `main` and `release/*`; a project may use a stricter version that allows nothing but `refs/heads/feature/*`. Then the working branch, too, changes only by bundle, also from the laptop.
+6. Later changes of `main` or the working branch reach the bare remote only through a bundle: on the laptop `git bundle create <file> <branch>`, copy it to the server, then `git -C <bare-dir> fetch <file> <branch>:<branch>`. A fetch into an existing branch is fast-forward only, so a diverged branch is refused. The `update` hook above refuses only `main` and `release/*`; a project may use a stricter version that allows nothing but `refs/heads/feature/*`. Then the working branch, too, changes only by bundle, also from the laptop. The project folder on the server is a clone of the bare remote and does not follow a fetch into the bare remote. The supervisor therefore runs `git fetch origin` there and starts new worktrees from `origin/<base>`. If you start strands by hand (`sf-status launch`), first run `git -C <project-folder> fetch origin` and, when that branch is checked out in the project folder, `git -C <project-folder> merge --ff-only origin/<branch>`; otherwise the new worktree starts from the old state.
 7. Unversioned folders the project needs on the server (for example a vendor or distribution folder) are copied with `rsync`. `rsync` creates only the last folder level, so run `mkdir -p <parent>` on the server first. Do not stop processes over ssh with `pkill -f <pattern>`: the pattern also matches the command line of your own ssh shell and kills it. Use a narrower pattern or a list of process ids.
 
 ## 7. Run `/setup-workflow`, variant B
@@ -158,6 +158,7 @@ The state lives in `<state-dir>`. Three views:
 - `<state-dir>/STATUS.md` and `<state-dir>/status.html`: the status board with all sections. The HTML file loads nothing from the internet.
 - Copy it to your laptop: `scp <ssh-target>:<state-dir>/status.html <local-dir>/`, then open it in your browser.
 - Watch a single strand: `ssh <ssh-target>`, then `tmux ls` and `tmux attach -t <project>-<short>`. Leave with `Ctrl-b` then `d`; do not close the session.
+- Grey text in the strand's input line (for example "continue with task 5") is a prompt suggestion of Claude Code, not typed input. It is sent only if someone presses Enter in the pane; answers go through `sf-status answer`, never through the pane.
 - The tmux session of a strand stays open and idle after it reported DONE; nobody ends it automatically. Close it with `tmux kill-session -t <project>-<strand>` when it is no longer needed.
 
 Costs shown in the board are a list-price equivalent, not an invoice.
@@ -197,7 +198,7 @@ How it works:
 
    Free text always goes through stdin (`-`): ssh joins its arguments and the remote shell splits them again, so quotes are lost and `;` or `$()` in build output would run on the server. On the laptop, pass it as a heredoc with the quoted delimiter `<<'EOF'`, never inside double quotes (`printf "…"`, `echo "…"`): the laptop shell would expand `$()` and backticks in the text. The same applies to the text for `local result`.
 6. Start the watcher again after each wake-up.
-7. Run exactly one watcher per project. Two watchers (for example in two chat sessions on the same laptop) both see the request and execute the step twice. Agree which session owns the local steps of the project.
+7. Run exactly one watcher per project. Two watchers (for example in two chat sessions on the same laptop) both see the request and execute the step twice. Agree which session owns the local steps of the project. When a new chat session takes over, stop the old watcher first (`kill <pid>`; it ends within a second, also during its poll interval), then start the new one.
 
 Notes:
 
@@ -343,3 +344,6 @@ Deviations and their fixes:
 - Two local watchers for one project saw the same request (exactly one per project, section "Local steps").
 - After `wake fast-forward` the supervisor did not start and `run.log` stayed quiet: it starts only with an open trigger (fixed wording in "Switching the supervisor on", step 4).
 - A fresh local worktree needed the project's code generation before its build; removing it after the merge check was asked first, as a deletion.
+- After a base sync by bundle the bare remote was current, but the project folder on the server still had the old working branch; a strand would have started without the newly committed spec and plan. Fixed by hand with a fast-forward there; the supervisor now fetches and starts from `origin/<base>` (section "Remotes without GitHub access", step 6).
+- Stopping the old watcher with `kill` waited for its poll interval, because bash runs the trap only after a foreground `sleep` ends (fixed: the interval sleep runs in the background and is waited for).
+- Prompt suggestions in the strand's input line looked like typed answers (note in "Viewing the state").
