@@ -74,6 +74,12 @@ def test_supervisor_delivers_follow_up_reset():
     assert "<TOPIC> IN PROGRESS" in text
 
 
+def test_open_acceptance_keeps_strand_open():
+    assert "waits for the human" in read("strand-start.md")
+    text = read("supervisor-task.md")
+    assert "Never close a session while" in text and "waits for the human" in text
+
+
 def _denied(command, patterns):
     for pat in patterns:
         inner = pat[len("Bash("):-1]

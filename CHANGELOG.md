@@ -7,6 +7,9 @@ All notable changes to this project are documented in this file.
 ### Fixed
 - Pre-push hook fails closed when gitleaks reports an error: gitleaks 8.30 exits 0 although its git call failed (`ERR error="stderr is not empty"`), so the push went through unscanned. An `ERR` line in its output now aborts the push (`tests/test_pre_push.py`).
 
+### Changed
+- Report rule: `<TOPIC> DONE` only once nothing waits for the user. While an acceptance or decision lies with them the first line stays `<TOPIC> IN PROGRESS`, and the session is not closed (`delegate-work`, `strand-start.md`, `supervisor-task.md`, server guide). Before, a strand reported DONE while waiting for acceptance, its tmux session was closed, and the answer needed a restart.
+
 ## [0.4.0]
 
 ### Added

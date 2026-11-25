@@ -39,6 +39,7 @@ def test_delegate_work_contract():
     assert "model" in text and "worktree" in text
     assert "<TOPIC> IN PROGRESS" in text and "follow-up <n>" in text
     assert "checkpoint" in text.lower()
+    assert "waits for the user" in text
 
 
 def test_pre_check_contract():

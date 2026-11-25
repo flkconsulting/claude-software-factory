@@ -243,7 +243,7 @@ You can stop the server layer at any time; variant A and the hooks keep working.
 - Stop everything: set `server.enabled` to `false` in `~/.claude/software-factory.json`. From the next cron run `sf-status run` only writes "server mode disabled" to the log.
 - Optional: remove the cron line with `crontab -e`.
 - Running strands are not stopped by this. End them with `tmux kill-session -t <project>-<short>` if you want that.
-- Finished strands (done or blocked) keep their tmux pane open but no longer count toward `max_strands`. Close a pane with `tmux kill-session -t <project>-<short>` once its report has been read.
+- Finished strands (done or blocked) keep their tmux pane open but no longer count toward `max_strands`. Close a pane with `tmux kill-session -t <project>-<short>` once its report has been read and nothing waits for you; a strand whose acceptance or decision is still yours stays open (its report on `IN PROGRESS`).
 
 ## Security limits
 
