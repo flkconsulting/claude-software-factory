@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import subprocess
 import sys
 from dataclasses import dataclass
 from datetime import date
@@ -94,7 +95,11 @@ def _hook() -> int:
     session = data.get("session_id")
     safe_id = re.sub(r"[^A-Za-z0-9_-]", "_", session) if isinstance(session, str) and session else "unknown"
     marker = cfg.state_dir / f"reminders-{safe_id}-{today.isoformat()}"
-    if marker.exists():
+    try:
+        marked = marker.exists()
+    except OSError:
+        marked = False
+    if marked:
         return 0
 
     lines = [f"Due reminders ({cfg.reminders_file}):"]
@@ -106,6 +111,58 @@ def _hook() -> int:
         cfg.state_dir.mkdir(parents=True, exist_ok=True)
         marker.touch()
     except OSError:
+        return 0
+    _prune_markers(cfg.state_dir, today)
+    return 0
+
+
+MARKER = re.compile(r"^reminders-.+-(\d{4}-\d{2}-\d{2})$")
+
+
+def _prune_markers(state_dir: Path, today: date) -> None:
+    try:
+        for f in state_dir.iterdir():
+            try:
+                m = MARKER.match(f.name)
+                if m and date.fromisoformat(m.group(1)) < today:
+                    f.unlink()
+            except (OSError, ValueError):
+                pass
+    except OSError:
+        pass
+
+
+def notify_text(entries: list[Entry]) -> tuple[str, str]:
+    body = "; ".join(f"{e.project}: {e.text}" for e in entries[:3])
+    if len(entries) > 3:
+        body += f" (+{len(entries) - 3} more)"
+    return f"Reminders: {len(entries)} due", body
+
+
+def applescript(title: str, body: str) -> str:
+    def esc(s: str) -> str:
+        return s.replace("\\", "\\\\").replace('"', '\\"')
+    return f'display notification "{esc(body)}" with title "{esc(title)}"'
+
+
+def _notify() -> int:
+    from sf_config import load_config
+
+    try:
+        text = load_config().reminders_file.read_text(encoding="utf-8-sig")
+    except OSError:
+        return 0
+    today = _today()
+    hits = sorted((e for e in parse(text) if e.day <= today), key=lambda e: e.day)
+    if not hits:
+        return 0
+    if (os.environ.get("SF_REMINDERS_PLATFORM") or sys.platform) != "darwin":
+        print("notification not available on this system")
+        return 0
+    try:
+        subprocess.run(["osascript", "-e", applescript(*notify_text(hits))],
+                       timeout=10, capture_output=True)
+    except (OSError, subprocess.SubprocessError):
         pass
     return 0
 
@@ -114,7 +171,7 @@ def main(argv: list[str]) -> int:
     try:
         sys.path.insert(0, str(Path(__file__).resolve().parent))
         if argv:
-            return 0  # --notify arrives in a later task
+            return _notify() if argv == ["--notify"] else 0
         return _hook()
     except Exception:
         return 0

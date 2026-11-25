@@ -118,8 +118,8 @@ def test_once_per_session_and_day(tmp_path):
     assert ctx(run(call(a), tmp_path, today="2026-12-06"))
     assert ctx(run(call(a, "s2"), tmp_path))
     names = sorted(f.name for f in state_dir(tmp_path).iterdir())
-    assert names == ["reminders-s1-2026-12-05", "reminders-s1-2026-12-06",
-                     "reminders-s2-2026-12-05"]
+    # the run on 12-06 pruned the 12-05 marker of s1 (older than today)
+    assert names == ["reminders-s1-2026-12-06", "reminders-s2-2026-12-05"]
 
 
 def test_bom_crlf_bad_date_and_garbage_lines(tmp_path):
@@ -149,3 +149,108 @@ def test_bad_stdin_silent(tmp_path):
     write(tmp_path, "- [ ] 2026-12-01 | * | x\n")
     r = run(None, tmp_path, raw="not json")
     assert r.returncode == 0 and r.stdout == ""
+
+
+# --- Task 3: --notify and marker handling -----------------------------------
+
+sys.path.insert(0, str(HOOK.parent))
+import reminders  # noqa: E402
+
+from datetime import date  # noqa: E402
+
+
+def test_notify_text_three_and_more():
+    es = [reminders.Entry(date(2026, 12, 1), f"P{i}", f"t{i}") for i in range(5)]
+    title, body = reminders.notify_text(es)
+    assert title == "Reminders: 5 due"
+    assert body == "P0: t0; P1: t1; P2: t2 (+2 more)"
+    assert reminders.notify_text(es[:2]) == ("Reminders: 2 due", "P0: t0; P1: t1")
+
+
+def test_applescript_escapes_quotes_and_backslash():
+    s = reminders.applescript('T "x"', 'a\\b "c"')
+    assert s == 'display notification "a\\\\b \\"c\\"" with title "T \\"x\\""'
+
+
+def notify(home, tmp_path, platform="darwin", fake=True, today="2026-12-05"):
+    bindir = tmp_path / "bin"
+    bindir.mkdir(exist_ok=True)
+    out = tmp_path / "osa-args.txt"
+    if fake:
+        f = bindir / "osascript"
+        f.write_text(f'#!/bin/sh\nprintf "%s\\n" "$@" > "{out}"\n')
+        f.chmod(0o755)
+    env = {"HOME": str(home), "PATH": f"{bindir}:/usr/bin:/bin",
+           "SF_REMINDERS_TODAY": today, "SF_REMINDERS_PLATFORM": platform}
+    r = subprocess.run([sys.executable, str(HOOK), "--notify"], capture_output=True,
+                       text=True, env=env, timeout=30)
+    return r, out
+
+
+def test_notify_calls_osascript(tmp_path):
+    write(tmp_path, "- [ ] 2026-12-02 | B | second\n- [ ] 2026-12-01 | A | first\n"
+                    "- [ ] 2026-12-09 | A | future\n- [x] 2026-12-01 | A | done\n")
+    r, out = notify(tmp_path, tmp_path)
+    assert r.returncode == 0
+    args = out.read_text().splitlines()
+    assert args[0] == "-e"
+    assert args[1] == ('display notification "A: first; B: second" '
+                       'with title "Reminders: 2 due"')
+    assert not state_dir(tmp_path).exists()
+
+
+def test_notify_nothing_due_no_call(tmp_path):
+    write(tmp_path, "- [ ] 2026-12-09 | A | future\n")
+    r, out = notify(tmp_path, tmp_path)
+    assert r.returncode == 0 and not out.exists()
+
+
+def test_notify_not_darwin_message(tmp_path):
+    write(tmp_path, "- [ ] 2026-12-01 | A | x\n")
+    r, out = notify(tmp_path, tmp_path, platform="linux")
+    assert r.returncode == 0 and r.stdout.strip() == "notification not available on this system"
+    assert not out.exists()
+
+
+def test_notify_osascript_missing_exit0(tmp_path):
+    write(tmp_path, "- [ ] 2026-12-01 | A | x\n")
+    r, out = notify(tmp_path, tmp_path, fake=False)
+    assert r.returncode == 0 and not out.exists()
+
+
+def test_other_argv_silent(tmp_path):
+    write(tmp_path, "- [ ] 2026-12-01 | A | x\n")
+    r = subprocess.run([sys.executable, str(HOOK), "--bogus"], capture_output=True,
+                       text=True, env={"HOME": str(tmp_path), "PATH": "/usr/bin:/bin"}, timeout=30)
+    assert r.returncode == 0 and r.stdout == ""
+
+
+def test_marker_check_error_still_prints(tmp_path):
+    import os
+    a = repo(tmp_path, "Alpha")
+    write(tmp_path, "- [ ] 2026-12-01 | Alpha | x\n")
+    sd = state_dir(tmp_path)
+    sd.mkdir(parents=True)
+    sd.chmod(0)
+    try:
+        if os.access(sd, os.X_OK):
+            return  # running as root: cannot provoke the error
+        r = run(call(a), tmp_path)
+    finally:
+        sd.chmod(0o755)
+    assert r.returncode == 0 and "- 2026-12-01 x" in ctx(r)
+
+
+def test_old_markers_removed_others_survive(tmp_path):
+    a = repo(tmp_path, "Alpha")
+    write(tmp_path, "- [ ] 2026-12-01 | Alpha | x\n")
+    sd = state_dir(tmp_path)
+    sd.mkdir(parents=True)
+    old = sd / "reminders-old-2026-12-04"
+    keep = [sd / "reminders-s9-2026-12-05", sd / "reminders-s9-2026-12-06",
+            sd / "context-load-abc.txt", sd / "reminders-launchd.log"]
+    for f in [old, *keep]:
+        f.write_text("")
+    assert ctx(run(call(a), tmp_path))
+    assert not old.exists()
+    assert all(f.exists() for f in keep)
