@@ -93,12 +93,9 @@ def _hook() -> int:
 
     session = data.get("session_id")
     safe_id = re.sub(r"[^A-Za-z0-9_-]", "_", session) if isinstance(session, str) and session else "unknown"
-    marker = cfg.state_dir / f"reminders-{safe_id}.txt"
-    try:
-        if marker.read_text(encoding="utf-8").strip() == today.isoformat():
-            return 0
-    except OSError:
-        pass
+    marker = cfg.state_dir / f"reminders-{safe_id}-{today.isoformat()}"
+    if marker.exists():
+        return 0
 
     lines = [f"Due reminders ({cfg.reminders_file}):"]
     lines += [f"- {e.day.isoformat()} {e.text}" for e in hits]
@@ -107,7 +104,7 @@ def _hook() -> int:
         "hookEventName": "UserPromptSubmit", "additionalContext": "\n".join(lines)}}))
     try:
         cfg.state_dir.mkdir(parents=True, exist_ok=True)
-        marker.write_text(today.isoformat(), encoding="utf-8")
+        marker.touch()
     except OSError:
         pass
     return 0

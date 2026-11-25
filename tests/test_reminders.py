@@ -117,6 +117,9 @@ def test_once_per_session_and_day(tmp_path):
     assert run(call(a), tmp_path).stdout == ""
     assert ctx(run(call(a), tmp_path, today="2026-12-06"))
     assert ctx(run(call(a, "s2"), tmp_path))
+    names = sorted(f.name for f in state_dir(tmp_path).iterdir())
+    assert names == ["reminders-s1-2026-12-05", "reminders-s1-2026-12-06",
+                     "reminders-s2-2026-12-05"]
 
 
 def test_bom_crlf_bad_date_and_garbage_lines(tmp_path):
