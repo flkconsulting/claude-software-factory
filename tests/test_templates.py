@@ -123,3 +123,38 @@ def test_agents_template_local_commands():
     assert set(PLACEHOLDER.findall(text)) == {
         "PROJECT_NAME", "PROJECT_PURPOSE", "PLANNING_LOCATION", "PLANNING_PUSH_RULE", "BUILD_COMMANDS",
     }
+
+
+def test_launchd_plist_valid():
+    import plistlib
+
+    raw = (TEMPLATES / "launchd" / "reminders.plist").read_text(encoding="utf-8")
+    filled = raw.replace("{{PYTHON}}", "/usr/bin/python3").replace("{{HOME}}", "/Users/someone")
+    assert not PLACEHOLDER.search(filled)
+    data = plistlib.loads(filled.encode("utf-8"))
+    assert data["Label"] == "software-factory.reminders"
+    args = data["ProgramArguments"]
+    assert args[0] == "/usr/bin/python3"
+    assert args[1] == "/Users/someone/.claude/software-factory/bin/reminders.py"
+    assert "--notify" in args
+    assert data["StartCalendarInterval"] == {"Hour": 9, "Minute": 7}
+    assert data["RunAtLoad"] is True
+    assert data["StandardErrorPath"].endswith("/state/reminders-launchd.log")
+
+
+def test_setup_mentions_reminders():
+    text = SETUP.read_text(encoding="utf-8")
+    for needle in (
+        "reminders.md",
+        "templates/launchd/reminders.plist",
+        "launchctl bootstrap",
+        "launchctl bootout",
+    ):
+        assert needle in text, needle
+
+
+def test_global_rule_reminders():
+    text = (TEMPLATES / "CLAUDE.md").read_text(encoding="utf-8")
+    assert "~/.claude/reminders.md" in text
+    assert "CronCreate" in text
+    assert "across sessions" in text

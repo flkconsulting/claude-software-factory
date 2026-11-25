@@ -174,3 +174,9 @@ Compact (see `~/.claude/rules/final-report.md` for the template). No long retell
 6. Maintainability
 7. Performance
 8. Speed of implementation
+
+## 16. Reminders across sessions
+
+A reminder that must outlive the session goes as one line into `~/.claude/reminders.md` (`- [ ] YYYY-MM-DD | <project or *> | <text>`), never into CronCreate.
+
+**Why:** CronCreate jobs live only in the current session and vanish when it ends; the reminders file is read at the start of every session and by the daily notification.
