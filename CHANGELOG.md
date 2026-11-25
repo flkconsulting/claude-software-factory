@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented in this file.
 
-## [Unreleased]
+## [0.4.0]
 
 ### Added
 - Reminders hook `hooks/reminders.py` (UserPromptSubmit): reports open entries of the reminders file that are due for the project of the session (and `*`), once per session and day; marker files `reminders-<session>-<date>` in the state folder.
