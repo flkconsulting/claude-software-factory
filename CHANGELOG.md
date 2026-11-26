@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented in this file.
 
-## Unreleased
+## [0.6.1]
 
 ### Fixed
 - Docs: the week view command is `/software-factory:termine` (plugin commands carry the plugin name); README and the 0.6.0 entry said `/termine`.
