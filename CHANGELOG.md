@@ -4,6 +4,11 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added
+- Mod `termine` 0.1.0 as a separate plugin (`plugins/termine/`): shows the next open appointment from the reminders file in the status line (`Termin heute 14:00 ...`, next 7 days, overdue never). Tests: `plugins/termine/hooks/register.test.ts`, `tests/test_termine_mod.py` (shared example lines with `reminders.py`).
+- `reminders.py --html` and the command `/termine`: read-only week view of the reminders as a self-contained page (`~/.claude/software-factory/termine.html`), opened in the browser on macOS.
+- Optional time of day in the reminders file (`- [ ] YYYY-MM-DD[ HH:MM] | <project or *> | <text>`): shown by the hook and `--notify`, entries sorted by day, all-day first, then time. Test variable `SF_REMINDERS_NOW`. Files without times keep working unchanged.
+
 ### Changed
 - Documentation brought up to date before the repository goes public (Stage 2 described as implemented, server settings table, kontextlast README).
 

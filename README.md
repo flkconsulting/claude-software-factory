@@ -58,6 +58,7 @@ Variant B (Stage 2) runs longer work on a dedicated server: strands in tmux, a c
 | Context-load hook | Reports once per threshold when a session history gets large and asks for a handover | `hooks/context_load.py` |
 | Reminders hook | Tells the session about due reminders of its project, once a day; optional daily macOS notification | `hooks/reminders.py` |
 | Mod `kontextlast` (separate plugin) | Shows the context load and the distance to the next threshold in the status line | `plugins/kontextlast/` |
+| Mod `termine` (separate plugin) | Shows the next open appointment from the reminders file in the status line | `plugins/termine/` |
 | `/setup-workflow` | Guided installation of rules, settings and project templates | `commands/setup-workflow.md` |
 | Skill `delegate-work` | Start file, limits, model choice, worktree, report format for delegated work | `skills/delegate-work/` |
 | Skill `ship-release` | Release checklist with backup, way back and acceptance list | `skills/ship-release/` |
@@ -97,12 +98,15 @@ A reminder that must outlive a session goes as one line into the reminders file 
 ```text
 - [ ] 2026-12-04 | my-project | check the acceptance of release train 2
 - [ ] 2026-12-01 | * | renew the domain
+- [ ] 2026-12-05 14:00 | my-project | call the customer
 ```
 
-- Format: `- [ ] YYYY-MM-DD | <project or *> | <text>`. `[x]` marks an entry done; lines that do not match are ignored.
+- Format: `- [ ] YYYY-MM-DD[ HH:MM] | <project or *> | <text>`. `[x]` marks an entry done; lines that do not match are ignored.
+- The time of day is optional (`HH:MM`, 00:00 to 23:59). An invalid time (`25:99`, `9:00`, `24:00`) makes the whole line invalid. Entries without a time are all day and sort before timed entries of the same day. The time is only displayed: an entry is due from its day on. The hook and `--notify` show the time also for overdue entries. Existing files stay valid without any change.
 - `<project>` is the name of the folder that holds `.git` (case-insensitive); `*` applies to every project.
 - The reminders hook reports open entries that are due (the day is today or earlier) at the first prompt of a session, once per session and day. Outside a repository only `*` entries are reported. A missing file means no output.
 - `python3 hooks/reminders.py --notify` shows one macOS notification for the due entries of all projects. `/setup-workflow` can install it as a launchd agent (`software-factory.reminders`, daily at 09:07 and at login) after your consent; it copies `reminders.py` and `sf_config.py` to `~/.claude/software-factory/bin/`.
+- `python3 hooks/reminders.py --html` (or `/termine` in a session) writes a read-only week view to `~/.claude/software-factory/termine.html` (overdue open entries on top, then today and the next six days, grouped per day; done entries and later days are not shown). On macOS the page opens in the browser, elsewhere only the path is printed. The page is self-contained and cannot edit entries; edit the reminders file instead.
 - After a plugin update, rerun the setup step (or copy the two files again) so the copy in `~/.claude/software-factory/bin/` is current.
 - Way back for the agent: `launchctl bootout gui/$(id -u)/software-factory.reminders`, then delete `~/Library/LaunchAgents/software-factory.reminders.plist`. Optional cleanup: `~/.claude/software-factory/bin/` and the log `~/.claude/software-factory/state/reminders-launchd.log`.
 
@@ -128,6 +132,25 @@ Install it next to `software-factory`; the context-load hook keeps its notice an
 
 The mod API is early access in Claude Code and may change between releases; `software-factory` itself does not depend on it. Way back: `/plugin uninstall kontextlast@claude-software-factory`. The text of the mod is German by design. Details: [plugins/kontextlast/README.md](plugins/kontextlast/README.md).
 
+## Next appointment in the status line (mod)
+
+`termine` is a separate plugin in the same marketplace: a Claude Code mod that shows the next open appointment from the reminders file (`reminders_file` in `~/.claude/software-factory.json`, default `~/.claude/reminders.md`) in the status line under the prompt. Only appointments within the next 7 days are shown; overdue ones never are, and when nothing is left (or the file is missing) the line stays empty:
+
+```text
+Termin heute 14:00 Kunde X
+Termin morgen 09:30 Zahnarzt
+Termin Fr 04.12. 14:00 Kunde X
+Termin heute Rechnung pruefen
+```
+
+The last form is an all-day entry without a time. The line rule is the one of `hooks/reminders.py`, present twice (Python and TypeScript); a shared table of example lines in `plugins/termine/hooks/register.test.ts` is checked by both test suites. Install it like `kontextlast`:
+
+```text
+/plugin install termine@claude-software-factory
+```
+
+The mod API is early access in Claude Code and may change between releases; `software-factory` itself does not depend on it. Way back: `/plugin uninstall termine@claude-software-factory`. The status text is German by design. Details: [plugins/termine/README.md](plugins/termine/README.md).
+
 ## Documentation
 
 The `docs/` folder explains where the method comes from and how to apply it:
@@ -145,6 +168,7 @@ Requirements: Python 3.10 or newer; the hooks use only the standard library.
 ```text
 uvx --python 3.10 pytest -q
 claude plugin test plugins/kontextlast          # mod tests; pytest runs them too where claude is installed
+claude plugin test plugins/termine
 git config core.hooksPath scripts/git-hooks   # maintainers only: pre-push secret scan
 ```
 
