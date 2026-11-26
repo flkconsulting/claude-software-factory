@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented in this file.
 
-## [Unreleased]
+## [0.5.0]
 
 ### Added
 - Mod `kontextlast` 0.1.0 as a separate plugin in the marketplace (`plugins/kontextlast/`): shows the context load and the distance to the next threshold in the status line, thresholds from `context_thresholds`. Tests: `plugins/kontextlast/hooks/register.test.ts` (`claude plugin test`), `tests/test_kontextlast_mod.py`.
