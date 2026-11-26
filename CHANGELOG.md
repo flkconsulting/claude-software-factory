@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented in this file.
 
-## [Unreleased]
+## [0.6.0]
 
 ### Added
 - Mod `termine` 0.1.0 as a separate plugin (`plugins/termine/`): shows the next open appointment from the reminders file in the status line (`Termin heute 14:00 ...`, next 7 days, overdue never). Tests: `plugins/termine/hooks/register.test.ts`, `tests/test_termine_mod.py` (shared example lines with `reminders.py`).
