@@ -23,7 +23,7 @@ Typical work - Sonnet, with limits downward and upward:
 
 - When in doubt, Sonnet. Opus needs a justification in the report.
 - **The main session does not write itself:** if the main session would write more than a few paragraphs of docs/text, or several passes on a graphic, it hands that off - rewriting from a bullet list to Sonnet, building PDFs and rendering images to Haiku. The main session keeps gathering state, bullet points and acceptance.
-- Forks of the own session (`subagent_type: "fork"`) always run with the session's model - use them only when the full context is really needed.
+- Forks of the own session (`subagent_type: "fork"`) always run with the session's model and are exempt from the model-choice hook - use them only when the full context is really needed.
 - Keep briefs to helper agents short: goal, files, what is decided, expected result, limits; answer at most 15 lines.
 - Reports on longer work state the distribution (number of helper agents per model).
 

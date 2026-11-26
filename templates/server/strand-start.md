@@ -11,7 +11,7 @@ Strand `<short>` of project `<project>`. Keep this file short; reference instead
 5. **Working folder and branch:** worktree `<worktree>` on branch `<branch>`; never work in the main checkout.
 6. **Steps:** numbered, each with its check (commands from the project `AGENTS.md`).
 7. **Do not:**
-   - Push only your own `feature/...` branch, only with green tests, a reviewed diff and a passed secret check. No merge, no push to `main` or shared branches, never force-push.
+   - Push only your own `feature/...` branch, only with green tests, a reviewed diff and a passed secret check. No merge, no push to `main` or shared branches, never force-push, unless explicitly approved with a quote.
    - Never read, print or stage secrets.
    - Delete or reset no data store, volume or container you did not create; no paid resources.
    - Type into no other session; approve no permission prompt there.

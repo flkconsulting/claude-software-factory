@@ -4,7 +4,7 @@
 
 **Effect.** Each stage started with a bottleneck the human noticed and ended with a new role for Claude. The tools did not come first; they followed the problems. Reading the stages tells you which parts of the method you need today and which can wait.
 
-**Limits.** This is a history, not a recipe. Stages 3, 5 and 7 depend on a separate always-on machine and are **Stage 2** material: this plugin (Stage 1) covers the single-machine variant only. See [04 - Transferring the method](04-transferring-the-method.md).
+**Limits.** This is a history, not a recipe, and the history of one team: the examples come from its own projects. Stages 3, 5 and 7 depend on a separate always-on machine and are **Stage 2** material (variant B of the plugin, implemented since 0.2.0, see [05 - Server setup](05-server-setup.md)); Stage 1 (variant A) covers the single-machine form. See [04 - Transferring the method](04-transferring-the-method.md).
 
 ## The stages
 
@@ -22,7 +22,7 @@ Claude stops implementing plans itself. It hands each task to a fresh subagent, 
 
 ### 3. A separate work machine (Stage 2)
 
-Long runs block the main machine. A dedicated server takes over: Claude sessions run there inside a terminal multiplexer, receive a start file that quotes the human's approval, and report back in a file whose first line is `DONE` or `BLOCKED`.
+Long runs block the main machine. A dedicated server takes over: Claude sessions run there inside a terminal multiplexer, receive a start file that quotes the human's approval, and report back in a file whose first line is `DONE`, `BLOCKED` or `IN PROGRESS` (while working, or while an acceptance or decision waits for the human).
 
 **Turning point:** work runs overnight.
 
@@ -50,7 +50,7 @@ The human asks what happens when the laptop is closed at night. Steering moves t
 
 **Turning point:** the human leads without having to be present.
 
-## What Stage 1 takes from this
+## What the plugin takes from this
 
 | Stage | Carried into this plugin as |
 | --- | --- |
@@ -58,4 +58,4 @@ The human asks what happens when the laptop is closed at night. Steering moves t
 | 2 | Independent review, working folder per undertaking (`delegate-work` skill) |
 | 4 | Permissions as rules with a reason (`templates/CLAUDE.md`, limits in `delegate-work`) |
 | 6 | Cross-section before building (part of the method, see [03](03-working-method.md)) |
-| 3, 5, 7 | Not in Stage 1; planned for Stage 2 |
+| 3, 5, 7 | Stage 2, implemented: server, strands, supervisor and status board (`sf-status`), see [05](05-server-setup.md) |

@@ -4,7 +4,7 @@
 
 **Effect.** Most of the speed did not come from more AI but from clear limits, written approvals and reviewers who are not the author. The rules below are the ones that proved themselves; the incident table shows what each rule answers.
 
-**Limits.** These are observations from one team and one kind of project. Items that relate to a separate server (watchers, unattended sessions, a status page) are **Stage 2**; the lessons are kept here for completeness, and their rules arrive with Stage 2.
+**Limits.** These are observations from one team and one kind of project. Items that relate to a separate server (watchers, unattended sessions, a status page) are **Stage 2**; their rules are implemented, see [05 - Server setup](05-server-setup.md).
 
 ## What carried the work
 
@@ -18,9 +18,9 @@
 
 | Moment | What happened | Lesson |
 | --- | --- | --- |
-| The silent night | Two sessions waited for hours on helper agents that were no longer running. Nobody noticed. | A watcher without AI reports a standstill after 45 minutes. (Stage 2) |
-| The vanished watcher | The script meant to start a release ended without a trace. | Every watcher writes a log line; without one it counts as failed. (Stage 2) |
-| The lost message | A follow-up sent to a session never arrived. | Send text and Enter separately and verify delivery. (Stage 2) |
+| The silent night | Two sessions waited for hours on helper agents that were no longer running. Nobody noticed. | A watcher without AI reports a standstill after 45 minutes. (Stage 2, implemented) |
+| The vanished watcher | The script meant to start a release ended without a trace. | Every watcher writes a log line; without one it counts as failed. (Stage 2, implemented) |
+| The lost message | A follow-up sent to a session never arrived. | Send text and Enter separately and verify delivery. (Stage 2, implemented) |
 | The hasty yes | The human said yes to a preview, then no; the session had already built it. | Withdrawals are normal; the process must tolerate them (git revert, a note with the reason). |
 | The wrong suspicion | Claude suspected a doubly used token when logging in again. The measurement showed an expired one. | Establish the cause first, then fix it; never loosen a security rule on suspicion. |
 | The license model | A pricing model that grew with usage would have punished exactly the complete use the product promises. | Check the business model and the product promise together. |

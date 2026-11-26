@@ -86,7 +86,7 @@ Per-user settings live in `~/.claude/software-factory.json`; hook state in `~/.c
 - `mode`: `block` (default) enforces the rules; `warn` only shows hints.
 - `context_thresholds`: two increasing token counts. The first asks for a handover at the next natural break, the second asks for one immediately.
 - `reminders_file`: path of the reminders file (default `~/.claude/reminders.md`). Give an absolute path or one starting with `~/`; relative paths resolve against the working folder of the process. A missing file means no output. Format: see [Reminders](#reminders).
-- `server` (optional, variant B): a section with `enabled` (default `false`) and further settings; see [Server setup](docs/05-server-setup.md). Without it nothing of Stage 2 is active.
+- `server` (optional, variant B): a section with `enabled` (default `false`) and further settings; see the [settings table in the server setup](docs/05-server-setup.md#server-settings). Without it nothing of Stage 2 is active.
 
 An unreadable or invalid file falls back to the defaults; a hook never fails with an error.
 
@@ -108,7 +108,7 @@ A reminder that must outlive a session goes as one line into the reminders file 
 
 ### Known limitation
 
-If the context-load hook holds back the first prompt of a day (block mode, threshold 2), the reminders shown with that prompt are lost for that session that day; the daily notification still covers them.
+If the context-load hook holds back the first prompt of a day (block mode, threshold 2), the reminders shown with that prompt are lost for that session that day; the daily notification still covers them if the macOS agent is installed.
 
 ## Context load in the status line (mod)
 
@@ -126,7 +126,7 @@ Install it next to `software-factory`; the context-load hook keeps its notice an
 /plugin install kontextlast@claude-software-factory
 ```
 
-The mod API is early access in Claude Code and may change between releases; `software-factory` itself does not depend on it. Way back: `/plugin uninstall kontextlast@claude-software-factory`.
+The mod API is early access in Claude Code and may change between releases; `software-factory` itself does not depend on it. Way back: `/plugin uninstall kontextlast@claude-software-factory`. The text of the mod is German by design. Details: [plugins/kontextlast/README.md](plugins/kontextlast/README.md).
 
 ## Documentation
 
@@ -148,7 +148,7 @@ claude plugin test plugins/kontextlast          # mod tests; pytest runs them to
 git config core.hooksPath scripts/git-hooks   # maintainers only: pre-push secret scan
 ```
 
-The pre-push hook is meant for maintainers: it needs `gitleaks` and a private blocklist (`.blocklist` or `SF_BLOCKLIST_FILE`). Contributors can skip it; CI scans every pull request for secrets, and runs the blocklist check for maintainer pushes and branches of this repository.
+The pre-push hook is meant for maintainers: it needs `gitleaks` and a private blocklist (`.blocklist` or `SF_BLOCKLIST_FILE`). The blocklist is a maintainer-only list of terms (for example internal names) that must never be published; the pre-push hook and a CI job check the working tree and history against it. Contributors and forks can skip it; CI scans every pull request for secrets, and runs the blocklist check for maintainer pushes and branches of this repository (it is skipped on fork pull requests, where the list is not available).
 
 ## License
 

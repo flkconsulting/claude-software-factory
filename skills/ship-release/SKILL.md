@@ -33,5 +33,5 @@ Releasing and deploying need the user's explicit approval (quote it in the start
 ## 3. Close
 
 - Update the release status line in the project plan, commit and push only the release branch.
-- Report with first line `RELEASE <version> DONE` or `RELEASE <version> BLOCKED`: times in UTC, backup location, state before/after, checks with numbers, comparison of findings, way back, commits.
+- Report with first line `RELEASE <version> DONE`, `RELEASE <version> BLOCKED` or `RELEASE <version> IN PROGRESS` (while the release runs or the acceptance waits for the user): times in UTC, backup location, state before/after, checks with numbers, comparison of findings, way back, commits.
 - Section "Acceptance for the user": numbered list, each item with the click path or command, what is new, and how to recognise it.

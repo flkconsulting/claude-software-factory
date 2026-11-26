@@ -6,6 +6,8 @@ Approval: the human's words verbatim go into the cell `approval` of the row, for
 
 Base: the branch the strand's worktree starts from. Leave it empty for the main branch. A strand that builds on another strand's work names that strand's branch here, so its worktree already contains the work.
 
+Columns `migrations` and `may change` are the strand's ownership: the migration numbers it reserves and the folders or files it may change (`none` if neither). They are there so that parallel strands do not collide.
+
 | short | strand | approval | starts when | branch | base | migrations | may change |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | example | Example strand | no | after report `<state-dir>/reports/<project>/<other-short>.md` starts with `<OTHER> DONE` | feature/example | feature/other | none | src/example/ |

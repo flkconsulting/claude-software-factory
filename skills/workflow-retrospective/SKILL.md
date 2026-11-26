@@ -12,7 +12,7 @@ The subject is the **process** (who waits, what stalls, what runs twice, where r
 ## 1. Sources (the period under review, usually one day)
 
 - `git log --since=... --stat` and `git log --merges`: commits per task, fix rounds, reverts.
-- Report files of delegated work (final-report style reports, see `delegate-work`): first lines (DONE / BLOCKED), open points, deviations from the start file.
+- Report files of delegated work (final-report style reports, see `delegate-work`): first lines (DONE / BLOCKED / IN PROGRESS), open points, deviations from the start file.
 - Start files and their follow-ups: many follow-ups mean a gap in the template or skill.
 - Questions to the user and their answers: how many, how long open, did work continue meanwhile.
 - Session transcripts (Claude Code JSONL under `~/.claude/projects/<project>/`): never read whole; search targeted with grep/jq for user corrections, rejected tool calls, hook blocks and commands that fail repeatedly. Quote a few short passages per session as evidence; no secrets or personal data in the report.

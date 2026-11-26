@@ -11,7 +11,7 @@ A searchable list of solved error causes, one JSON line each. It stops the same 
 
 ## Location
 
-The script resolves the path in this order: `--file`, then `$SF_ERROR_INDEX`, then `planning/ERRORS.jsonl` relative to the current directory. Always pass `--file` when the project rules (AGENTS.md) name a path; otherwise running from a subfolder or a separate planning repo silently creates a second index. If the file is missing, `add` creates it.
+The script resolves the path in this order (environment variable `SF_ERROR_INDEX`: path of the index file): `--file`, then `$SF_ERROR_INDEX`, then `planning/ERRORS.jsonl` relative to the current directory. Always pass `--file` when the project rules (AGENTS.md) name a path; otherwise running from a subfolder or a separate planning repo silently creates a second index. If the file is missing, `add` creates it.
 
 ## Before debugging
 

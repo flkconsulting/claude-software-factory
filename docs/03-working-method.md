@@ -4,7 +4,7 @@
 
 **Effect.** The method is built around the human as the bottleneck. Everything serves the aim that the human only does what only the human can do: decide, approve, accept. Planning is nearly free; merging, reviewing and the human's attention are scarce.
 
-**Limits.** Stage 1 implements the single-machine form: the planning session itself steers, with subagents per task and a progress log per plan. The supervisor session, the watcher script and the status board are **Stage 2** and are marked below. The method is lean and Kanban-like with release waves; it is not a certified framework.
+**Limits.** Stage 1 (variant A) is the single-machine form: the planning session itself steers, with subagents per task and a progress log per plan. The supervisor session, the watcher script and the status board are **Stage 2** (variant B, implemented since 0.2.0, see [05 - Server setup](05-server-setup.md)) and are marked below. The method is lean and Kanban-like with release waves; it is not a certified framework.
 
 ## Roles
 
@@ -12,10 +12,10 @@
 | --- | --- | --- | --- |
 | Decider | the human | direction, approvals, answers to questions, acceptance | - |
 | Planning | Claude in the chat session | concepts with mock-ups, cross-section, wave plan, publishing outward | change others' things without approval |
-| Supervisor (Stage 2) | Claude on a server, loop every 15-30 min | start strands, nudge stalled ones, collect questions, merge, keep the status board | answer questions itself, work outside the wave plan |
+| Supervisor (Stage 2) | Claude on a server, a short run per bundle of triggers (cron every 3 min, safety pass every `safety_pass_hours`, default 3) | start strands, nudge stalled ones, collect questions, merge, keep the status board | answer questions itself, work outside the wave plan |
 | Strand | one Claude session per undertaking, own branch and working folder | write the plan, implement with helper agents, test, report | change foreign areas, merge to the main branch |
 | Helper agent | short-lived, per task | implement or review one task | start further agents |
-| Watcher (Stage 2) | shell script, every 10 min | report standstill and new reports, nudge the supervisor | - |
+| Watcher (Stage 2) | `sf-status run`, started by cron every 3 min, no AI | report standstill and new reports, raise triggers for the supervisor | - |
 
 ## From idea to release
 
@@ -46,7 +46,7 @@
 
 ## The status board (Stage 2)
 
-One page for everything the human has to know or do: a morning report, screenshot acceptance, a to-do list with answer fields, approvals with a "done" mark, a tile per strand with its state, what it waits on and its model, and events. The supervisor writes the data, the page refreshes itself. Stage 1 has no such page; the planning session writes state, tasks and approvals into the project's handover file at the end of each phase instead.
+One page for everything the human has to know or do: a morning report, screenshot acceptance, a to-do list with answer fields, approvals with a "done" mark, a tile per strand with its state, what it waits on and its model, and events. `sf-status` writes the data (`STATUS.md`, `status.html`) on every cron run and the page refreshes itself; you answer there with `sf-status answer`. Variant A has no such page; the planning session writes state, tasks and approvals into the project's handover file at the end of each phase instead.
 
 ## Classification: lean Kanban with release waves, steered by exception
 

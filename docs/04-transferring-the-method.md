@@ -50,10 +50,13 @@
 | Project instructions (lean) | always-valid project rules, one line per command | `templates/AGENTS.md`, `templates/project-CLAUDE.md` |
 | Rules | model choice, session handover, briefing, final report, structured questions | `templates/rules/` |
 | Planning folder | roadmap, decisions, questions, findings, to-do | `templates/planning/` |
-| Hooks | enforce the model choice, report the context load | `hooks/` |
+| Hooks | enforce the model choice, report the context load, report due reminders | `hooks/` |
+| Mod `kontextlast` (separate plugin) | context load and distance to the next threshold in the status line | `plugins/kontextlast/` |
 | Skill `delegate-work` | start file, start, follow-ups, limits, reports | `skills/delegate-work/` |
 | Skill `ship-release` | checklist, backup, way back, acceptance list | `skills/ship-release/` |
 | Skill `workflow-retrospective` | key figures and at most three evidenced improvements | `skills/workflow-retrospective/` |
+| Skill `pre-check` | five evidence questions before a plan or implementation | `skills/pre-check/` |
+| Skill `error-index` | searchable list of solved error causes per project | `skills/error-index/` |
 | Setup | guided installation | `commands/setup-workflow.md` |
 
 Stage 2 adds, for variant B:

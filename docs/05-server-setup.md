@@ -142,6 +142,27 @@ The wave plan is the only source of approvals. The supervisor starts a strand on
 6. For a start at a fixed time with a precondition, use `<plugin-dir>/templates/server/watcher.sh` (see `delegate-work`, section "Watcher").
 7. Run full test suites and builds through `<plugin-dir>/scripts/heavy-run.sh <command>`. It lets at most `server.heavy_slots` heavy runs go at once.
 
+## Server settings
+
+The `server` section of `~/.claude/software-factory.json` (defaults and validation in `scripts/sf_status/config.py`). A missing section, a missing key or an invalid value (wrong type, not above zero for numbers, unknown model) falls back to the default. `sf-status config <key>` prints the effective value.
+
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `enabled` | `false` | Switches the server layer on; while `false`, `sf-status run` does nothing. |
+| `supervisor` | `false` | Allows supervisor runs (a project must also be registered with `--supervisor yes`). |
+| `stall_minutes` | `45` | Minutes of standstill after which a running strand is reported as stalled (once). |
+| `supervisor_busy_minutes` | `75` | Minutes after which a supervisor run that still holds its lock raises a notice. |
+| `supervisor_timeout_minutes` | `30` | Maximum duration of one supervisor run. |
+| `supervisor_model` | `sonnet` | Model of the supervisor: `haiku`, `sonnet` or `opus`. |
+| `heavy_slots` | `2` | Heavy runs (tests, builds) allowed at once through `heavy-run.sh`. |
+| `max_strands` | `4` | Maximum running strands per project; `launch` refuses more. |
+| `safety_pass_hours` | `3` | Interval of the periodic `safety` trigger that wakes the supervisor even without other news. |
+| `retry_limit` | `3` | Supervisor runs per trigger before it is parked and a notice appears. |
+| `local_notice_hours` | `8` | Hours without a result after which an open local-step request raises one warning. |
+| `usage_report` | `true` | Include the usage and cost summary (from the session transcripts) on the status board. |
+| `auto_compact_window` | `200000` | Value of `CLAUDE_CODE_AUTO_COMPACT_WINDOW` for strands started by `launch`. |
+| `state_dir` | `~/.claude/software-factory/server` | State folder (`<state-dir>` in this guide); an absolute path or one starting with `~/`. |
+
 ## Switching the supervisor on
 
 Two things must both be on before the supervisor runs: the setting `server.supervisor` and the registration of the project.
