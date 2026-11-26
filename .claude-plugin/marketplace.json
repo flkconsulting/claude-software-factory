@@ -26,6 +26,17 @@
       },
       "homepage": "https://github.com/flkconsulting/claude-software-factory",
       "repository": "https://github.com/flkconsulting/claude-software-factory"
+    },
+    {
+      "name": "termine",
+      "description": "Mod: shows the next appointment of the reminders file in the status line",
+      "version": "0.1.0",
+      "source": "./plugins/termine",
+      "author": {
+        "name": "FLK Consulting UG"
+      },
+      "homepage": "https://github.com/flkconsulting/claude-software-factory",
+      "repository": "https://github.com/flkconsulting/claude-software-factory"
     }
   ]
 }
