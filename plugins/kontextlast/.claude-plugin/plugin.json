@@ -1,0 +1,11 @@
+{
+  "name": "kontextlast",
+  "description": "Mod: shows the session's context load against the software-factory thresholds in the status line",
+  "version": "0.1.0",
+  "author": {
+    "name": "FLK Consulting UG"
+  },
+  "homepage": "https://github.com/flkconsulting/claude-software-factory",
+  "repository": "https://github.com/flkconsulting/claude-software-factory",
+  "license": "MIT"
+}

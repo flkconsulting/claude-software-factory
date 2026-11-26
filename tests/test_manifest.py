@@ -21,7 +21,7 @@ def test_plugin_and_marketplace_agree():
     assert plugin["name"] == "software-factory"
     assert plugin["version"] == "0.4.1"
     assert plugin["license"] == "MIT"
-    assert len(market["plugins"]) == 1
+    assert [e["name"] for e in market["plugins"]] == ["software-factory", "kontextlast"]
     entry = market["plugins"][0]
     assert entry["name"] == plugin["name"]
     assert entry["version"] == plugin["version"]

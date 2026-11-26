@@ -57,6 +57,7 @@ Variant B (Stage 2) runs longer work on a dedicated server: strands in tmux, a c
 | Model-choice hook | Rejects (block) or warns about helper-agent dispatches that do not name a model | `hooks/model_choice.py` |
 | Context-load hook | Reports once per threshold when a session history gets large and asks for a handover | `hooks/context_load.py` |
 | Reminders hook | Tells the session about due reminders of its project, once a day; optional daily macOS notification | `hooks/reminders.py` |
+| Mod `kontextlast` (separate plugin) | Shows the context load and the distance to the next threshold in the status line | `plugins/kontextlast/` |
 | `/setup-workflow` | Guided installation of rules, settings and project templates | `commands/setup-workflow.md` |
 | Skill `delegate-work` | Start file, limits, model choice, worktree, report format for delegated work | `skills/delegate-work/` |
 | Skill `ship-release` | Release checklist with backup, way back and acceptance list | `skills/ship-release/` |
@@ -109,6 +110,24 @@ A reminder that must outlive a session goes as one line into the reminders file 
 
 If the context-load hook holds back the first prompt of a day (block mode, threshold 2), the reminders shown with that prompt are lost for that session that day; the daily notification still covers them.
 
+## Context load in the status line (mod)
+
+`kontextlast` is a separate plugin in the same marketplace: a Claude Code mod (hooks module in TypeScript) that keeps the session's context load in the status line under the prompt, measured like the context-load hook and against the same `context_thresholds`:
+
+```text
+Kontext 94k · bis 1: 56k
+⚠ Kontext 160k · Schwelle 1 · bis 2: 140k
+⚠ Kontext 310k · Schwelle 2: neue Sitzung
+```
+
+Install it next to `software-factory`; the context-load hook keeps its notice and block, the mod only shows the figure:
+
+```text
+/plugin install kontextlast@claude-software-factory
+```
+
+The mod API is early access in Claude Code and may change between releases; `software-factory` itself does not depend on it. Way back: `/plugin uninstall kontextlast@claude-software-factory`.
+
 ## Documentation
 
 The `docs/` folder explains where the method comes from and how to apply it:
@@ -125,6 +144,7 @@ Requirements: Python 3.10 or newer; the hooks use only the standard library.
 
 ```text
 uvx --python 3.10 pytest -q
+claude plugin test plugins/kontextlast          # mod tests; pytest runs them too where claude is installed
 git config core.hooksPath scripts/git-hooks   # maintainers only: pre-push secret scan
 ```
 
