@@ -2,7 +2,7 @@
 description: Open the week view of the reminders (appointments) in the browser
 ---
 
-# /termine
+# /software-factory:termine
 
 Run exactly this command with the Bash tool:
 
