@@ -375,6 +375,27 @@ def _run_tickets(args) -> int:
 
 # ---- project registry -------------------------------------------------------
 
+def _train_options(p) -> None:
+    p.add_argument("--train", choices=("on", "off"))
+    p.add_argument("--train-day", help="mon|tue|wed|thu|fri|sat|sun")
+    p.add_argument("--train-time", help="HH:MM")
+    p.add_argument("--train-tz", help="time zone name, e.g. Europe/Berlin")
+    p.add_argument("--train-skip", help="comma-separated dates YYYY-MM-DD without a train (empty clears)")
+
+
+def _train_changes(args) -> dict:
+    """Only the train options that were given, as Project field values."""
+    out: dict = {}
+    if args.train is not None:
+        out["train"] = args.train == "on"
+    for opt, key in (("train_day", "train_day"), ("train_time", "train_time"), ("train_tz", "train_tz")):
+        if getattr(args, opt) is not None:
+            out[key] = getattr(args, opt)
+    if args.train_skip is not None:
+        out["train_skip"] = [x.strip() for x in args.train_skip.split(",") if x.strip()]
+    return out
+
+
 def _add_project(sub) -> None:
     p = sub.add_parser("project", help="register, remove or list projects")
     ps = p.add_subparsers(dest="project_command", required=True)
@@ -387,6 +408,10 @@ def _add_project(sub) -> None:
     a.add_argument("--approval-quote")
     a.add_argument("--wave-plan", default="planning/wave-plan.md")
     a.add_argument("--never-touch", default="")
+    _train_options(a)
+    st = ps.add_parser("set", help="change the train settings of a project")
+    st.add_argument("--project", required=True)
+    _train_options(st)
     r = ps.add_parser("remove", help="unregister a project (its event file stays)")
     r.add_argument("name")
     ps.add_parser("list", help="list registered projects")
@@ -403,12 +428,23 @@ def _run_project(args) -> int:
                 name=args.name, title=args.title, folder=os.path.realpath(os.path.expanduser(args.folder)),
                 main_branch=args.main_branch, supervisor=args.supervisor == "yes",
                 approval_quote=args.approval_quote, wave_plan=args.wave_plan,
-                never_touch=[x.strip() for x in args.never_touch.split(",") if x.strip()]))
+                never_touch=[x.strip() for x in args.never_touch.split(",") if x.strip()],
+                **_train_changes(args)))
+        elif args.project_command == "set":
+            changes = _train_changes(args)
+            if not changes:
+                print("sf-status: project set needs at least one option (--train, --train-day, "
+                      "--train-time, --train-tz, --train-skip)", file=sys.stderr)
+                return 2
+            projects.update(state_dir, args.project, changes)
         elif args.project_command == "remove":
             projects.remove(state_dir, args.name)
         else:
             for p in projects.load_strict(state_dir):
-                print(f"{p.name}\t{p.title}\t{p.folder}\tsupervisor={'yes' if p.supervisor else 'no'}")
+                line = f"{p.name}\t{p.title}\t{p.folder}\tsupervisor={'yes' if p.supervisor else 'no'}"
+                if p.train:
+                    line += f"\ttrain={p.train_day} {p.train_time} {p.train_tz}"
+                print(line)
     except (projects.ProjectError, OSError, ValueError) as e:
         print(f"sf-status: {e}", file=sys.stderr)
         return 1

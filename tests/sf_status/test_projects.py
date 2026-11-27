@@ -237,3 +237,106 @@ def test_project_remove_refuses_invalid_registry(env, capsys):
 def test_project_list_missing_file_is_empty_ok(env, capsys):
     assert cli.main(["project", "list"]) == 0
     assert capsys.readouterr().out == ""
+
+
+# ---- train settings -----------------------------------------------------------
+
+TRAIN_ARGS = ["--supervisor", "yes", "--approval-quote", "q", "--train", "on", "--train-day", "tue",
+              "--train-time", "18:00", "--train-tz", "Europe/Berlin", "--train-skip", "2026-12-29"]
+
+
+def _train_project(env, tmp_path, *extra):
+    repo = make_repo(tmp_path / "alpha")
+    assert cli.main(add_args(repo, "alpha", "--supervisor", "yes", "--approval-quote", "q", *extra)) == 0
+    return repo
+
+
+def test_train_defaults_and_old_registry_loads(env):
+    _write_registry(env, [{"name": "a", "title": "A", "folder": "/x"}])
+    (p,) = projects.load_strict(env)
+    assert p.train is False and p.train_day == "tue" and p.train_time == "18:00"
+    assert p.train_tz == "Europe/Berlin" and p.train_skip == []
+
+
+def test_add_with_train(env, tmp_path, capsys):
+    repo = make_repo(tmp_path / "alpha")
+    assert cli.main(add_args(repo, "alpha", *TRAIN_ARGS)) == 0
+    (p,) = projects.load_strict(env)
+    assert p.train is True and p.train_skip == ["2026-12-29"]
+    capsys.readouterr()
+    assert cli.main(["project", "list"]) == 0
+    assert capsys.readouterr().out.rstrip("\n").endswith("supervisor=yes\ttrain=tue 18:00 Europe/Berlin")
+
+
+def test_list_unchanged_without_train(env, tmp_path, capsys):
+    repo = make_repo(tmp_path / "alpha")
+    assert cli.main(add_args(repo, "alpha")) == 0
+    capsys.readouterr()
+    assert cli.main(["project", "list"]) == 0
+    assert capsys.readouterr().out == f"alpha\tAlpha\t{repo.resolve()}\tsupervisor=no\n"
+
+
+@pytest.mark.parametrize("opt,value", [
+    ("--train-day", "tuesday"), ("--train-time", "18:60"), ("--train-time", "24:00"),
+    ("--train-time", "18.00"), ("--train-tz", "Mars/Base"), ("--train-tz", "../etc/passwd"),
+    ("--train-skip", "2026-13-01"), ("--train-skip", "20261201"), ("--train-skip", "2026-12-1")])
+def test_train_values_rejected(env, tmp_path, capsys, opt, value):
+    repo = make_repo(tmp_path / "alpha")
+    assert cli.main(add_args(repo, "alpha", "--supervisor", "yes", "--approval-quote", "q", opt, value)) == 1
+    assert capsys.readouterr().err.startswith("sf-status:")
+    assert projects.load(env) == []
+
+
+@pytest.mark.parametrize("opt,value", [("--train-day", "tuesday"), ("--train-time", "18:60"),
+                                       ("--train-tz", "Mars/Base"), ("--train-skip", "2026-13-01")])
+def test_set_rejects_bad_values_registry_unchanged(env, tmp_path, capsys, opt, value):
+    _train_project(env, tmp_path)
+    before = (env / "projects.json").read_bytes()
+    assert cli.main(["project", "set", "--project", "alpha", opt, value]) == 1
+    assert capsys.readouterr().err.startswith("sf-status:")
+    assert (env / "projects.json").read_bytes() == before
+
+
+def test_train_on_requires_supervisor(env, tmp_path, capsys):
+    repo = make_repo(tmp_path / "alpha")
+    assert cli.main(add_args(repo, "alpha", "--train", "on")) == 1
+    assert "supervisor" in capsys.readouterr().err
+    assert projects.load(env) == []
+
+
+def test_set_changes_only_named_fields(env, tmp_path):
+    repo = make_repo(tmp_path / "alpha")
+    assert cli.main(add_args(repo, "alpha", *TRAIN_ARGS)) == 0
+    assert cli.main(["project", "set", "--project", "alpha", "--train-time", "17:30"]) == 0
+    (p,) = projects.load_strict(env)
+    assert (p.train, p.train_day, p.train_time, p.train_tz, p.train_skip) == (
+        True, "tue", "17:30", "Europe/Berlin", ["2026-12-29"])
+    assert cli.main(["project", "set", "--project", "alpha", "--train", "off"]) == 0
+    (p,) = projects.load_strict(env)
+    assert (p.train, p.train_time, p.train_skip) == (False, "17:30", ["2026-12-29"])
+
+
+def test_set_unknown_project_exit_1(env, capsys):
+    assert cli.main(["project", "set", "--project", "nope", "--train", "off"]) == 1
+    assert capsys.readouterr().err.startswith("sf-status:")
+
+
+def test_set_without_option_exit_2(env, tmp_path, capsys):
+    _train_project(env, tmp_path)
+    assert cli.main(["project", "set", "--project", "alpha"]) == 2
+    assert capsys.readouterr().err.startswith("sf-status:")
+
+
+def test_set_skip_empty_clears(env, tmp_path):
+    repo = make_repo(tmp_path / "alpha")
+    assert cli.main(add_args(repo, "alpha", *TRAIN_ARGS)) == 0
+    assert cli.main(["project", "set", "--project", "alpha", "--train-skip", ""]) == 0
+    assert projects.load_strict(env)[0].train_skip == []
+
+
+def test_from_dict_rejects_wrong_types(env):
+    for key, bad in (("train", "yes"), ("train_day", 1), ("train_skip", "2026-12-29"), ("train_skip", [1])):
+        _write_registry(env, [{"name": "a", "title": "A", "folder": "/x", key: bad}])
+        assert projects.load(env) == []
+        assert key in (env / "run.log").read_text()
+        (env / "run.log").unlink()

@@ -2,9 +2,10 @@
 import json
 import os
 import re
-from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from dataclasses import asdict, dataclass, field, replace
+from datetime import date, datetime, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from . import effects, events
 
@@ -12,6 +13,10 @@ NAME_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 # state keys of markers/wake.json that a valid project name could equal (see wake.STATE_KEYS)
 RESERVED_NAMES = ("rows", "seen")
 SYSTEM_STRAND = "server"  # strand id used for registry events
+TRAIN_DAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
+TRAIN_KEYS = ("train", "train_day", "train_time", "train_tz", "train_skip")
+TIME_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
+DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
 class ProjectError(Exception):
@@ -28,6 +33,11 @@ class Project:
     approval_quote: str | None = None
     wave_plan: str = "planning/wave-plan.md"
     never_touch: list[str] = field(default_factory=list)
+    train: bool = False
+    train_day: str = "tue"
+    train_time: str = "18:00"
+    train_tz: str = "Europe/Berlin"
+    train_skip: list[str] = field(default_factory=list)
 
 
 def _file(state_dir: Path) -> Path:
@@ -50,11 +60,15 @@ def _from_dict(d: dict) -> Project:
     p = Project(**{k: v for k, v in d.items() if k in known})
     if not isinstance(p.supervisor, bool):
         raise ValueError("supervisor must be true or false")
-    for key in ("title", "main_branch", "wave_plan"):
+    if not isinstance(p.train, bool):
+        raise ValueError("train must be true or false")
+    for key in ("title", "main_branch", "wave_plan", "train_day", "train_time", "train_tz"):
         if not isinstance(getattr(p, key), str):
             raise ValueError(f"{key} must be a string")
     if not isinstance(p.never_touch, list):
         raise ValueError("never_touch must be a list")
+    if not isinstance(p.train_skip, list) or not all(isinstance(x, str) for x in p.train_skip):
+        raise ValueError("train_skip must be a list of strings")
     return p
 
 
@@ -123,6 +137,27 @@ def has_gitleaks_pre_push(folder: Path) -> bool:
         return False
 
 
+def check_train(p: Project) -> None:
+    if p.train_day not in TRAIN_DAYS:
+        raise ProjectError(f"train day must be one of {', '.join(TRAIN_DAYS)}")
+    if not TIME_RE.match(p.train_time):
+        raise ProjectError("train time must be HH:MM from 00:00 to 23:59")
+    try:
+        ZoneInfo(p.train_tz)
+    except (ZoneInfoNotFoundError, ValueError, OSError):
+        raise ProjectError(f"train time zone {p.train_tz!r} is unknown (or the system has no time zone data; "
+                           "install tzdata)") from None
+    for d in p.train_skip:
+        try:
+            if not DATE_RE.match(d):
+                raise ValueError(d)
+            date.fromisoformat(d)
+        except ValueError:
+            raise ProjectError(f"train skip date {d!r} must be a valid date YYYY-MM-DD") from None
+    if p.train and not p.supervisor:
+        raise ProjectError("train on needs supervisor yes (the supervisor asks the train question)")
+
+
 def check(project: Project, existing: list[Project]) -> None:
     if not NAME_RE.match(project.name):
         raise ProjectError("name: only a-z, 0-9 and single hyphens (not at the start or end)")
@@ -144,6 +179,7 @@ def check(project: Project, existing: list[Project]) -> None:
         raise ProjectError(f"folder {project.folder} is not a git repository")
     if project.supervisor and not (project.approval_quote or "").strip():
         raise ProjectError("supervisor yes needs the human approval quoted verbatim (--approval-quote)")
+    check_train(project)
     if not has_gitleaks_pre_push(folder):
         raise ProjectError("the repository has no executable pre-push hook containing gitleaks "
                            "(core.hooksPath or .git/hooks); install scripts/git-hooks/pre-push "
@@ -155,6 +191,21 @@ def add(state_dir: Path, project: Project) -> None:
     check(project, items)
     _save(state_dir, items + [project])
     events.append(state_dir, project.name, {"kind": "project_added", "strand": SYSTEM_STRAND})
+
+
+def update(state_dir: Path, name: str, changes: dict) -> Project:
+    """Change the train settings of a registered project."""
+    items = load_strict(state_dir)
+    old = next((p for p in items if p.name == name), None)
+    if old is None:
+        raise ProjectError(f"project {name!r} is not registered")
+    extra = set(changes) - set(TRAIN_KEYS)
+    if extra:
+        raise ProjectError(f"cannot change {', '.join(sorted(extra))}")
+    new = replace(old, **changes)
+    check_train(new)
+    _save(state_dir, [new if p.name == name else p for p in items])
+    return new
 
 
 def remove(state_dir: Path, name: str) -> None:
