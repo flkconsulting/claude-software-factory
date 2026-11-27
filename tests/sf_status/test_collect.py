@@ -498,3 +498,13 @@ def test_backport_without_releases_file_no_git_call(cfg, state, projects, fake, 
     monkeypatch.setattr(effects, "git_cherry", lambda *a: calls.append(a) or [])
     collect.collect(cfg, projects, NOW)
     assert calls == []
+
+
+def test_state_tickets_filled_only_with_file(cfg, state, projects, fake):
+    assert collect.collect(cfg, projects, NOW).tickets == []
+    _tickets_file(projects, "| nr | since | kind | rank | state | version | summary |\n"
+                            "| --- | --- | --- | --- | --- | --- | --- |\n"
+                            "| T-1 | 2026-01-01 | bug | critical | new | | boom |\n")
+    got = collect.collect(cfg, projects, NOW).tickets
+    assert [o["project"] for o in got] == ["alpha"]
+    assert got[0]["bugs"][0]["nr"] == "T-1" and got[0]["next"] == []

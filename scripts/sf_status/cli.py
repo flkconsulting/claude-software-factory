@@ -12,7 +12,7 @@ from typing import Callable
 
 from . import checks, collect, effects, events, launch, projects, render, supervisor, wake
 from .config import DEFAULT_STATE_DIR, ServerConfig, load_server_config
-from .planning import load_releases
+from .planning import load_releases, load_tickets
 
 
 def _config() -> ServerConfig | None:
@@ -333,6 +333,46 @@ def _run_backport(args) -> int:
     return 1 if commits else 0
 
 
+def _add_tickets(sub) -> None:
+    p = sub.add_parser("tickets", help="list tickets as JSON lines (read only)")
+    p.add_argument("--project", help="only this project")
+    p.add_argument("--train", help="only tickets whose version rides this train (YYYY-MM-DD)")
+
+
+def _run_tickets(args) -> int:
+    """One JSON line per ticket; exit 1 unknown project, 2 bad date, 0 otherwise (also without files)."""
+    cfg = _config()
+    if cfg is None:
+        return 1
+    if args.train is not None:
+        try:
+            datetime.strptime(args.train, "%Y-%m-%d")
+        except ValueError:
+            print(f"sf-status: --train needs a date like 2026-12-01, got {args.train!r}", file=sys.stderr)
+            return 2
+    state_dir = Path(cfg.state_dir)
+    if args.project is not None:
+        project = _project(args.project, state_dir)
+        if project is None:
+            return 1
+        chosen = [project]
+    else:
+        chosen = projects.load(state_dir)
+    for p in chosen:
+        table = load_tickets(p)
+        if table is None:
+            continue
+        rows = table.rows
+        if args.train is not None:
+            releases = load_releases(p)
+            versions = {v.version for v in releases.versions if v.train == args.train} if releases else set()
+            rows = [t for t in rows if t.version in versions]
+        for t in rows:
+            print(json.dumps({"project": p.name, **{f.name: getattr(t, f.name) for f in fields(t)}},
+                             ensure_ascii=False))
+    return 0
+
+
 # ---- project registry -------------------------------------------------------
 
 def _add_project(sub) -> None:
@@ -639,6 +679,7 @@ COMMANDS: dict[str, tuple[Callable, Callable[[argparse.Namespace], int]]] = {
     "dismiss": (_add_dismiss, _run_dismiss),
     "attention": (_add_attention, _run_attention),
     "backport": (_add_backport, _run_backport),
+    "tickets": (_add_tickets, _run_tickets),
     "project": (_add_project, _run_project),
     "run": (_add_run, _run_run),
     "wake": (_add_wake, _run_wake),

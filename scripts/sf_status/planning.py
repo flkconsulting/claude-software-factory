@@ -148,3 +148,40 @@ def load_tickets(project: Project) -> TicketTable | None:
 def load_releases(project: Project) -> Releases | None:
     text = _read(planning_dir(project) / "RELEASES.md")
     return None if text is None else parse_releases(text)
+
+
+_RANK_ORDER = {"critical": 0, "high": 1, "normal": 2}
+_CLOSED = ("shipped", "rejected", "deferred")
+_IN_VERSION = ("planned", "in-progress", "in-train")
+_NUMBER = re.compile(r"^T-(\d+)$")
+
+
+def _order(items: list[Ticket], rank: bool = False) -> list[Ticket]:
+    """Numeric by the number after T-; invalid numbers last in file order (sort is stable)."""
+    def key(t: Ticket):
+        m = _NUMBER.match(t.nr)
+        return ((_RANK_ORDER.get(t.rank.lower(), len(_RANK_ORDER)) if rank else 0),
+                0 if m else 1, int(m.group(1)) if m else 0)
+    return sorted(items, key=key)
+
+
+def overview(project: str, table: TicketTable, releases: Releases | None) -> dict:
+    """Board and CLI summary of one project's tickets: open bugs, next versions, new tickets."""
+    state = lambda t: t.state.lower()  # noqa: E731
+    bugs = [t for t in table.rows if t.kind.lower() == "bug" and state(t) not in _CLOSED]
+    new = [t for t in table.rows if state(t) == "new"]
+    nxt = []
+    for v in (releases.versions if releases is not None else []):
+        if v.state.lower() in ("planned", "testing"):
+            tickets = [t for t in table.rows if t.version == v.version and state(t) in _IN_VERSION]
+            nxt.append({"version": v.version, "line": v.line, "state": v.state,
+                        "tickets": [t.nr for t in _order(tickets)]})
+    return {
+        "project": project,
+        "bugs": [{"nr": t.nr, "rank": t.rank, "state": t.state, "version": t.version, "summary": t.summary}
+                 for t in _order(bugs, rank=True)],
+        "next": nxt,
+        "new": [{"nr": t.nr, "kind": t.kind, "rank": t.rank, "summary": t.summary}
+                for t in _order([t for t in new if t.kind.lower() == "bug"], rank=True)
+                + _order([t for t in new if t.kind.lower() != "bug"], rank=True)],
+    }

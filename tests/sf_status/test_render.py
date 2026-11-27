@@ -288,3 +288,43 @@ def test_write_writes_attention_json(tmp_path):
     render.write(tmp_path, make_state(), NOW)
     got = json.loads((tmp_path / "attention.json").read_text())
     assert got == render.attention(make_state())
+
+
+def _overview(project="alpha", **kw):
+    o = {"project": project, "bugs": [{"nr": "T-3", "rank": "critical", "state": "new", "version": "",
+                                       "summary": "crash"}],
+         "next": [{"version": "2.1.0", "line": "main", "state": "planned", "tickets": ["T-2", "T-4"]}],
+         "new": [{"nr": "T-3", "kind": "bug", "rank": "critical", "summary": "crash"}]}
+    o.update(kw)
+    return o
+
+
+def test_tickets_section_between_local_and_strands():
+    s = make_state(tickets=[_overview()])
+    md = render.render_markdown(s, NOW)
+    assert re.findall(r"^## (.+)$", md, re.M)[:4] == ["Needs you", "Waiting for local step", "Tickets", "Strands"]
+    for text in ("### alpha", "Open bugs", "Next versions", "New, not assessed", "T-3", "2.1.0", "T-2, T-4"):
+        assert text in md
+    html = render.render_html(s, NOW)
+    assert html.index("<h2>Waiting for local step</h2>") < html.index("<h2>Tickets</h2>") < html.index("<h2>Strands</h2>")
+    assert "<h3>Open bugs (1)</h3>" in html and "<td>T-2, T-4</td>" in html
+
+
+def test_tickets_section_escapes_free_text():
+    bad = "a|b\nc\r\nd <script>x</script>\x1b[31mred"
+    s = make_state(tickets=[_overview(bugs=[{"nr": "T-3", "rank": "critical", "state": "new", "version": "",
+                                             "summary": bad}], new=[])])
+    md = render.render_markdown(s, NOW)
+    row = [ln for ln in md.splitlines() if ln.startswith("| T-3")]
+    assert len(row) == 1
+    assert "a\\|b c d" in row[0] and "\x1b" not in md and "<script" not in md
+    html = render.render_html(s, NOW)
+    assert "<script" not in html and "&lt;script&gt;" in html and "\x1b" not in html
+
+
+def test_attention_tickets_key_only_when_critical():
+    assert "tickets" not in render.attention(make_state())
+    assert "tickets" not in render.attention(make_state(tickets=[_overview(bugs=[
+        {"nr": "T-2", "rank": "high", "state": "new", "version": "", "summary": "x"}])]))
+    got = render.attention(make_state(tickets=[_overview()]))
+    assert got["tickets"] == [{"project": "alpha", "nr": "T-3"}]

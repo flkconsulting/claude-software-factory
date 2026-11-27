@@ -48,3 +48,15 @@ def test_columns_follow_header_order():
             "| x | yes | title | feature/x | now |\n")
     r = parse_wave_plan(text)[0]
     assert (r.short, r.strand, r.approved, r.starts_when, r.branch) == ("x", "title", True, "now", "feature/x")
+
+
+def test_tickets_column_optional():
+    row = "| w1 | api | no | now | feature/api | none | src |"
+    assert parse_wave_plan(HEADER + row + "\n")[0].tickets == ""
+    h = "| short | strand | approval | starts when | branch | migrations | may change | tickets |\n| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+    row2 = row + " T-1, T-2 |"
+    r = parse_wave_plan(h + row2 + "\n")[0]
+    assert r.tickets == "T-1, T-2"
+    assert r.row_hash == hashlib.sha1(row2.encode()).hexdigest()[:12]
+    again = parse_wave_plan("# other plan\n\n" + h + row2 + "\n")[0]
+    assert again.row_hash == r.row_hash

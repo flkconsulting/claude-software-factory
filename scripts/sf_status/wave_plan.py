@@ -1,7 +1,8 @@
 """Wave plan parser: a markdown table with one row per planned strand.
 
-Columns: short | strand | approval | starts when | branch | base | migrations | may change
+Columns: short | strand | approval | starts when | branch | base | migrations | may change | tickets
 Cells are read by the names in the header row, so plans without the `base` column keep working.
+The optional `tickets` cell is free text for the human and not part of row_hash (a function of the row text only).
 Without a header row the columns are taken in the order above, without `base`.
 """
 import hashlib
@@ -21,6 +22,7 @@ class WaveRow:
     branch: str
     row_hash: str
     base: str = ""  # branch the worktree starts from; empty means the main branch
+    tickets: str = ""  # optional cell: ticket numbers the strand works on
 
 
 def parse_wave_plan(text: str) -> list[WaveRow]:
@@ -51,5 +53,6 @@ def parse_wave_plan(text: str) -> list[WaveRow]:
             branch=cell("branch"),
             row_hash=hashlib.sha1(stripped.encode("utf-8")).hexdigest()[:12],
             base=cell("base"),
+            tickets=cell("tickets"),
         ))
     return rows

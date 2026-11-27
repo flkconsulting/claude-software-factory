@@ -360,3 +360,58 @@ def test_backport_ignores_state(env, monkeypatch, capsys):
 def test_backport_no_releases_file_exit_2(env, capsys):
     assert _backport() == 2
     assert capsys.readouterr().err.startswith("sf-status: ")
+
+
+def _tickets_files(env, tickets, releases=None):
+    from pathlib import Path
+    folder = Path(projects.load(env)[0].folder) / "planning"
+    folder.mkdir(parents=True, exist_ok=True)
+    if tickets is not None:
+        (folder / "TICKETS.md").write_text(
+            "| nr | since | kind | rank | state | version | summary |\n| --- | --- | --- | --- | --- | --- | --- |\n"
+            + tickets, encoding="utf-8")
+    if releases is not None:
+        (folder / "RELEASES.md").write_text(
+            "## Versions\n\n| version | line | state | train |\n| --- | --- | --- | --- |\n" + releases,
+            encoding="utf-8")
+
+
+ROWS = ("| T-1 | 2026-01-01 | bug | high | new | 2.1.0 | a \"q\" |\n"
+        "| T-2 | 2026-01-01 | bug | high | new | 2.2.0 | b |\n")
+VERS = "| 2.1.0 | main | planned | 2026-12-01 |\n| 2.2.0 | main | planned | 2026-12-15 |\n"
+
+
+def test_tickets_prints_json_lines(env, capsys):
+    _tickets_files(env, ROWS)
+    assert cli.main(["tickets"]) == 0
+    out = [json.loads(x) for x in capsys.readouterr().out.splitlines()]
+    assert [o["nr"] for o in out] == ["T-1", "T-2"]
+    assert out[0]["project"] == "p" and out[0]["summary"] == 'a "q"' and out[0]["version"] == "2.1.0"
+    assert cli.main(["tickets", "--project", "p"]) == 0
+    assert len(capsys.readouterr().out.splitlines()) == 2
+
+
+def test_tickets_train_filter(env, capsys):
+    _tickets_files(env, ROWS, VERS)
+    assert cli.main(["tickets", "--train", "2026-12-15"]) == 0
+    assert [json.loads(x)["nr"] for x in capsys.readouterr().out.splitlines()] == ["T-2"]
+    assert cli.main(["tickets", "--train", "2027-01-01"]) == 0
+    assert capsys.readouterr().out == ""
+
+
+def test_tickets_bad_date_exit_2(env, capsys):
+    _tickets_files(env, ROWS, VERS)
+    assert cli.main(["tickets", "--train", "12/15/2026"]) == 2
+    err = capsys.readouterr().err
+    assert err.startswith("sf-status: ") and err.count("\n") == 1
+
+
+def test_tickets_unknown_project_exit_1(env, capsys):
+    assert cli.main(["tickets", "--project", "nope"]) == 1
+    assert capsys.readouterr().err.startswith("sf-status: ")
+
+
+def test_tickets_no_file_prints_nothing(env, capsys):
+    assert cli.main(["tickets"]) == 0
+    assert cli.main(["tickets", "--project", "p"]) == 0
+    assert capsys.readouterr().out == ""

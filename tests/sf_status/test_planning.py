@@ -87,3 +87,54 @@ def test_planning_dir_follows_wave_plan_path(tmp_path):
     assert planning_dir(_project(tmp_path, wave_plan="docs/plan/wave-plan.md")) == tmp_path / "docs" / "plan"
     assert planning_dir(_project(tmp_path)) == tmp_path / "planning"
     assert isinstance(planning_dir(_project(tmp_path)), Path)
+
+
+def _overview_tickets():
+    rows = [
+        ("T-10", "bug", "normal", "planned", "2.1.0", "ten"),
+        ("T-2", "bug", "high", "in-progress", "2.1.0", "two"),
+        ("T-3", "bug", "critical", "new", "", "three"),
+        ("T-4", "feature", "critical", "planned", "2.1.0", "feat"),
+        ("T-5", "bug", "critical", "shipped", "2.0.0", "done"),
+        ("T-6", "bug", "high", "deferred", "", "later"),
+        ("T-7", "feature", "normal", "new", "", "idea"),
+        ("T-8", "bug", "normal", "new", "", "newbug"),
+        ("T-9", "bug", "normal", "in-train", "2.1.0", "train"),
+        ("T-11", "bug", "normal", "rejected", "", "no"),
+        ("T-12", "feature", "normal", "shipped", "2.1.0", "shipped in 2.1.0"),
+    ]
+    text = HEAD + SEP + "".join(
+        f"| {nr} | 2026-01-01 | {k} | {r} | S | {s} | {v} | | {m} |\n" for nr, k, r, s, v, m in rows)
+    return parse_tickets(text)
+
+
+def _overview_releases():
+    return parse_releases("## Versions\n\n| version | line | state |\n| --- | --- | --- |\n"
+                          "| 2.0.0 | release/2.0 | released |\n| 2.1.0 | main | planned |\n"
+                          "| 2.2.0 | main | idea |\n")
+
+
+def test_overview_orders_bugs_by_severity():
+    from sf_status.planning import overview
+    o = overview("p", _overview_tickets(), _overview_releases())
+    assert o["project"] == "p"
+    assert [b["nr"] for b in o["bugs"]] == ["T-3", "T-2", "T-8", "T-9", "T-10"]
+    assert set(o["bugs"][0]) == {"nr", "rank", "state", "version", "summary"}
+    assert [n["nr"] for n in o["new"]] == ["T-3", "T-8", "T-7"]
+    assert set(o["new"][0]) == {"nr", "kind", "rank", "summary"}
+    assert o["next"] == [{"version": "2.1.0", "line": "main", "state": "planned",
+                          "tickets": ["T-2", "T-4", "T-9", "T-10"]}]
+
+
+def test_overview_without_releases_has_no_next():
+    from sf_status.planning import overview
+    assert overview("p", _overview_tickets(), None)["next"] == []
+
+
+def test_overview_invalid_numbers_sort_last_in_file_order():
+    from sf_status.planning import overview
+    text = HEAD + SEP + ("| X-1 | 2026-01-01 | bug | normal | S | new | | | b |\n"
+                         "| T-9 | 2026-01-01 | bug | normal | S | new | | | a |\n"
+                         "| T-x | 2026-01-01 | bug | normal | S | new | | | c |\n")
+    o = overview("p", parse_tickets(text), None)
+    assert [b["nr"] for b in o["bugs"]] == ["T-9", "X-1", "T-x"]

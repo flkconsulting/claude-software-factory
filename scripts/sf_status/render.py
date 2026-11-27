@@ -124,6 +124,29 @@ def _local(state: State) -> list:
              rows)]
 
 
+def _tickets(state: State) -> list:
+    b: list = []
+    for o in _dicts(state.tickets):
+        b.append(("h3", _line(_get(o, "project", "?"), 80)))
+        bugs = _dicts(o.get("bugs"))
+        b.append(("h3", f"Open bugs ({len(bugs)})"))
+        b.append(("table", ["nr", "rank", "state", "version", "summary"],
+                  [[_cell(_get(x, k, "")) for k in ("nr", "rank", "state", "version", "summary")]
+                   for x in bugs]) if bugs else ("p", "None."))
+        nxt = _dicts(o.get("next"))
+        b.append(("h3", "Next versions"))
+        b.append(("table", ["version", "line", "state", "tickets"],
+                  [[_cell(_get(x, "version", "")), _cell(_get(x, "line", "")), _cell(_get(x, "state", "")),
+                    _cell(", ".join(str(n) for n in x["tickets"]) if isinstance(x.get("tickets"), list) else "")]
+                   for x in nxt]) if nxt else ("p", "None."))
+        new = _dicts(o.get("new"))
+        b.append(("h3", "New, not assessed"))
+        b.append(("table", ["nr", "kind", "rank", "summary"],
+                  [[_cell(_get(x, k, "")) for k in ("nr", "kind", "rank", "summary")] for x in new])
+                 if new else ("p", "None."))
+    return b
+
+
 def _stalls(state: State) -> list:
     out = [("li", f"{_line(k, 160)}: {_line(v.state, 40)} since {_line(v.since, 40)}")
            for k, v in sorted(state.strands.items()) if v.stalled]
@@ -201,9 +224,10 @@ def _recent(state: State) -> list:
 
 
 def _sections(state: State) -> list[tuple[str, list]]:
-    secs = [("Needs you", _needs_you(state)), ("Waiting for local step", _local(state)),
-            ("Strands", _strands(state)), ("Stalls", _stalls(state)),
-            ("Supervisor", _supervisor(state))]
+    secs = [("Needs you", _needs_you(state)), ("Waiting for local step", _local(state))]
+    if _dicts(state.tickets):
+        secs.append(("Tickets", _tickets(state)))
+    secs += [("Strands", _strands(state)), ("Stalls", _stalls(state)), ("Supervisor", _supervisor(state))]
     if isinstance(state.usage, dict):
         secs.append(("Usage", _usage(state.usage)))
     secs.append(("Recent events", _recent(state)))
@@ -297,7 +321,7 @@ def _pick(d: dict, keys: tuple[str, ...]) -> dict:
 
 def attention(state: State) -> dict:
     """What needs the human, without fields that change while nothing new happens."""
-    return {
+    out = {
         "questions": [_pick(q, ("project", "id", "question")) for q in _dicts(state.questions)],
         "tasks": [_pick(t, ("project", "id", "title")) for t in _dicts(state.tasks)],
         "notices": [_pick(n, ("project", "strand", "time", "level", "title")) for n in _dicts(state.notices)
@@ -305,6 +329,11 @@ def attention(state: State) -> dict:
         "strands": [{"project": v.project, "strand": v.strand, "state": v.state}
                     for _, v in sorted(state.strands.items()) if v.state in ATTENTION_STATES],
     }
+    critical = [{"project": o.get("project"), "nr": b.get("nr")}
+                for o in _dicts(state.tickets) for b in _dicts(o.get("bugs")) if b.get("rank") == "critical"]
+    if critical:
+        out["tickets"] = critical
+    return out
 
 
 def _atomic(path: Path, text: str) -> None:

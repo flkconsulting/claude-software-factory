@@ -11,7 +11,7 @@ from pathlib import Path
 
 from . import checks, effects, events, stall, usage as usage_mod
 from .config import ServerConfig
-from .planning import load_releases, load_tickets
+from .planning import load_releases, load_tickets, overview
 from .projects import SYSTEM_STRAND, Project, project_for_path
 
 REPORT_STATES = {"DONE": "done", "BLOCKED": "blocked"}
@@ -50,6 +50,7 @@ class State:
     recent: list[dict] = field(default_factory=list)
     triggers: dict | None = None  # supervisor/triggers.json content, filled by render.write
     local: list[dict] = field(default_factory=list)  # open local step requests, oldest first
+    tickets: list[dict] = field(default_factory=list)  # planning.overview per project with a TICKETS.md
 
 
 _load_json = events.load_json
@@ -324,8 +325,11 @@ def collect(cfg: ServerConfig, projects: list[Project], now: float,
     # findings on planning/TICKETS.md and planning/RELEASES.md, one notice per ticket and finding
     found: dict[str, list[checks.Finding]] = {}
     keep: list[str] = []
+    overviews: list[dict] = []
     for p in projects:
         tickets, releases = load_tickets(p), load_releases(p)
+        if tickets is not None:
+            overviews.append(overview(p.name, tickets, releases))
         found[p.name] = (
             (checks.ticket_findings(tickets, releases, when, cfg.ticket_critical_hours) if tickets is not None else [])
             + (checks.release_findings(releases) if releases is not None else []))
@@ -372,6 +376,7 @@ def collect(cfg: ServerConfig, projects: list[Project], now: float,
     result.questions = sort_events(open_q)
     result.tasks = sort_events(list(tasks.values()))
     result.local = sorted(local, key=lambda r: str(r["since"]))
+    result.tickets = overviews
     result.notices = shown_notices(all_events, cutoff)
     result.recent = all_events[-MAX_RECENT:]
     result.runs = _runs(state_dir)
