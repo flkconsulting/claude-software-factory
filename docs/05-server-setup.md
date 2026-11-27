@@ -197,7 +197,7 @@ Strands and the supervisor ask questions only when they are really unsure. Open 
 
 Notices stay on the board for 7 days. Stall, missing-session and local-step notices disappear by themselves once the strand finished or the request has a result; others, for example a supervisor warning that no longer applies, you dismiss yourself. Each notice on the board carries the ready-to-copy command.
 
-- One notice: `sf-status dismiss --project <name> --time <time> [--title "<title>"]`. `<time>` is the notice's time as shown on the board. If several notices share that time, the command refuses and lists their titles; add `--title`.
+- One notice: `sf-status dismiss --project <name> --time <time> [--title "<title>"]`. `<time>` is the notice's time as it appears in the command under the notice (the notice line itself shows no time). If several notices share that time, the command refuses and lists their titles; add `--title`.
 - All shown notices of one strand: `sf-status dismiss --project <name> --strand <strand>`.
 - All shown notices of the project: `sf-status dismiss --project <name> --all`.
 
