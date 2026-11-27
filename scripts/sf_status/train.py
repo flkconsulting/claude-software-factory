@@ -107,7 +107,7 @@ def board_entry(project: Project, tickets, releases, rows, strands, marker: dict
         "working": len(working),
         "waiting": sum(1 for t in rows_t if state(t) in ("new", "assessed")) + len(open_q),
         "on_test": [f"{v.version} ({v.line})" for v in (releases.versions if releases is not None else [])
-                    if v.state.lower() == "testing"],
+                    if v.state.lower() == "testing" and VERSION_RE.fullmatch(v.version)],
         "question": open_q[-1] if open_q else None,
     }
 

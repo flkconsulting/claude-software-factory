@@ -20,6 +20,7 @@ TICKET_STATES = ("new", "assessed", "planned", "in-progress", "in-train", "shipp
 NEEDS_VERSION = ("planned", "in-progress", "in-train", "shipped")
 UNPLANNED = ("new", "assessed")
 VERSION_STATES = ("planned", "testing", "accepted", "released")
+NOTICE_CAP = 20
 WARNING_CODES = ("critical-unplanned", "backport-missing")
 _NR = re.compile(r"^T-\d+$")
 _DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -39,6 +40,8 @@ TEXTS = {
     "version-unknown": "version is not listed in RELEASES.md",
     "critical-unplanned": "critical bug is still not planned after the configured hours",
     "line-missing": "line is empty",
+    "version-invalid": "version is empty",
+    "customer-missing": "delivery has no customer",
     "version-duplicate": "version is listed more than once",
     "delivery-version-unknown": "delivery names a version that is not listed",
     "delivery-version-unreleased": "delivery names a version that is not released yet",
@@ -155,6 +158,8 @@ def release_findings(releases: Releases) -> list[Finding]:
         if has("versions.state") and v.state not in VERSION_STATES:
             add("state-unknown")
         if has("versions.version"):
+            if not v.version:
+                add("version-invalid")
             if v.version in seen:
                 add("version-duplicate")
             seen.add(v.version)
@@ -162,6 +167,8 @@ def release_findings(releases: Releases) -> list[Finding]:
         state = {v.version: v.state for v in releases.versions}
         for n, d in enumerate(releases.deliveries, 1):
             ident = _safe(d.version, f"delivery{n}")
+            if has("deliveries.customer") and not d.customer:
+                out.append(_finding("release", f"delivery{n}", "customer-missing", src))
             if d.version not in state:
                 out.append(_finding("release", ident, "delivery-version-unknown", src))
             elif has("versions.state") and state[d.version] != "released":
@@ -218,10 +225,22 @@ def emit_once(state_dir: Path, per_project: dict[str, list[Finding]], when: date
     for project, findings in per_project.items():
         for f in findings:
             current.setdefault(f"{project}/{f.key}", (project, f))
-    for key in sorted(current.keys() - noticed):
+    new = sorted(current.keys() - noticed, key=lambda k: (current[k][1].level != "warning", k))
+    shown: dict[str, int] = {}
+    hidden: dict[str, int] = {}
+    for key in new:
         project, f = current[key]
+        if shown.get(project, 0) >= NOTICE_CAP:
+            hidden[project] = hidden.get(project, 0) + 1
+            continue
+        shown[project] = shown.get(project, 0) + 1
         events.append(state_dir, project, {"kind": "notice", "strand": SYSTEM_STRAND, "level": f.level,
                                            "title": f.title, "text": f.text}, when)
+    for project, n in hidden.items():
+        events.append(state_dir, project, {
+            "kind": "notice", "strand": SYSTEM_STRAND, "level": "info", "title": f"{n} more findings",
+            "text": f"{n} more findings in planning/TICKETS.md and planning/RELEASES.md "
+                    "are not shown one by one."}, when)
     kept = set(current) | {k for k in noticed if keep_prefixes and k.startswith(keep_prefixes)}
     if kept != noticed:
         events.save_json(path, {"noticed": sorted(kept)})

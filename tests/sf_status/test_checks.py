@@ -238,3 +238,45 @@ def test_empty_version_and_delivery_ids_use_fallback():
 def test_backport_missing_version_column_keeps_prefix(cherry, tmp_path):
     found, keep = checks.backport_findings(_proj(tmp_path), rel(missing=["versions.version"]))
     assert found == [] and keep == ("alpha/backport-",)
+
+
+def test_release_empty_version_and_customer():
+    r = rel(Version("", "release/1.0", "planned"), Version("1.0.0", "release/1.0", "planned"),
+            deliveries=[Delivery("", "1.0.0")])
+    out = checks.release_findings(r)
+    by = {f.code: f for f in out}
+    assert by["version-invalid"].key == "release-row1/version-invalid"
+    assert by["version-invalid"].text == "release row1: version is empty. See planning/RELEASES.md."
+    assert by["customer-missing"].key == "release-delivery1/customer-missing"
+    assert "delivery has no customer" in by["customer-missing"].text
+    # other formats are not flagged; missing columns switch the rules off
+    odd = checks.release_findings(rel(Version("v1", "release/1.0", "planned")))
+    assert "version-invalid" not in codes(odd)
+    off = checks.release_findings(rel(Version("", "l", "planned"), deliveries=[Delivery("", "1.0.0")],
+                                      missing=["versions.version", "deliveries.customer"]))
+    assert "version-invalid" not in codes(off) and "customer-missing" not in codes(off)
+
+
+def test_emit_once_caps_notices(tmp_path):
+    fs = [checks.Finding(f"T-{i:02d}/kind-unknown", "kind-unknown", "info", f"ticket T-{i:02d}: kind-unknown", "x")
+          for i in range(25)]
+    checks.emit_once(tmp_path, {"alpha": fs}, NOW)
+    evs = events.read(tmp_path, "alpha")[0]
+    assert len(evs) == 21
+    assert [e["title"] for e in evs[:20]] == [f.title for f in fs[:20]]
+    assert evs[20]["title"] == "5 more findings" and evs[20]["level"] == "info"
+    assert evs[20]["text"] == ("5 more findings in planning/TICKETS.md and planning/RELEASES.md "
+                               "are not shown one by one.")
+    assert len(json.loads((tmp_path / "markers" / "tickets.json").read_text())["noticed"]) == 25
+    checks.emit_once(tmp_path, {"alpha": fs}, NOW)
+    assert len(events.read(tmp_path, "alpha")[0]) == 21
+
+
+def test_emit_once_cap_shows_warning_first(tmp_path):
+    fs = [checks.Finding(f"T-{i:02d}/kind-unknown", "kind-unknown", "info", f"ticket T-{i:02d}: kind-unknown", "x")
+          for i in range(25)]
+    w = checks.Finding("T-99/critical-unplanned", "critical-unplanned", "warning", "ticket T-99: critical", "x")
+    checks.emit_once(tmp_path, {"alpha": fs + [w]}, NOW)
+    evs = events.read(tmp_path, "alpha")[0]
+    assert evs[0]["title"] == "ticket T-99: critical"
+    assert len(evs) == 21 and evs[20]["title"] == "6 more findings"

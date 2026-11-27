@@ -299,13 +299,15 @@ Every finding carries only fixed words, numbers, versions and commit short forms
 - Ticket fields: `number-invalid`, `number-duplicate`, `kind-unknown`, `rank-unknown`, `effort-unknown`, `state-unknown`, `since-invalid`, `column-missing-<name>` for a missing required column.
 - Ticket and version: `version-missing` (state needs a version), `version-test-suffix` (a `-test.N` build instead of the release version), `version-unknown` (version not in `RELEASES.md`; checked only when that file exists).
 - Critical bugs: `critical-unplanned` is raised for a ticket with `kind` `bug`, `rank` `critical` and state `new` or `assessed` once `ticket_critical_hours` (settings table above) have passed since 00:00 UTC of `since`. It is a warning and so appears in "Needs you".
-- Releases: `line-missing`, `state-unknown`, `version-duplicate`, `column-missing-<name>`, and for deliveries `delivery-version-unknown` and `delivery-version-unreleased`.
+- Releases: `line-missing`, `state-unknown`, `version-invalid` (empty version), `version-duplicate`, `column-missing-<name>`, and for deliveries `customer-missing` (empty customer), `delivery-version-unknown` and `delivery-version-unreleased`.
 
 All findings are level `info` except `critical-unplanned` and `backport-missing`, which are `warning`.
 
 ### Notices
 
 A finding raises one notice once per ticket and finding, not once per run. The notice is titled `ticket <id>: <code>` or `release <version>: <code>` and stays on the board until it is 7 days old or dismissed (`sf-status dismiss`). The marker `markers/tickets.json` forgets a finding once it is solved; if it comes back, it is reported again. Marker keys are `<project>/<id>/<code>` for tickets (`id` is `T-<n>`, `row<n>` when the number is invalid, `tickets-file` for file findings). Release findings use ids prefixed with `release-`: `release-<version>`, `release-row<n>`, `release-delivery<n>`, `releases-file`.
+
+At most 20 notices are raised per project and run, warnings first. If more findings are new, one further notice `<n> more findings` says so; all of them are still recorded in the marker, so the rest never appears later.
 
 Findings on rows without a valid number or version (`row<n>`, `delivery<n>`) are keyed by position. Inserting or removing rows above them changes the key, so the same finding can notify again.
 

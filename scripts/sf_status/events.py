@@ -152,10 +152,7 @@ def load_marker(state_dir: Path, reader: str) -> dict[str, int]:
 
 def save_marker(state_dir: Path, reader: str, offsets: dict[str, int]) -> None:
     target = _marker_path(state_dir, reader)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    tmp = target.with_suffix(".tmp")
-    tmp.write_text(json.dumps(offsets, sort_keys=True), encoding="utf-8")
-    os.replace(tmp, target)
+    save_json(target, offsets)
 
 
 def load_json(path: Path) -> dict:

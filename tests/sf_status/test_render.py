@@ -378,3 +378,4 @@ def test_headline_escapes_free_text():
     s = make_state(train=[_train(project="a<script>", on_test=["1.0.0 (<script>x</script>\x1b[31m)"])])
     assert "<script>" not in render.render_markdown(s, NOW)
     assert "<script>" not in render.render_html(s, NOW)
+    assert "\x1b" not in render.render_markdown(s, NOW) and "\x1b" not in render.render_html(s, NOW)

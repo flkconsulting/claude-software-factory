@@ -445,3 +445,13 @@ def test_board_entry_without_files_is_zero():
     got = train.board_entry(mk(), None, None, [], {}, {}, utc(2026, 11, 30))
     assert got == {"project": "alpha", "date": "2026-12-01", "skipped": False, "in": 0, "working": 0,
                    "waiting": 0, "on_test": [], "question": None}
+
+
+def test_board_entry_on_test_filters_versions(tmp_path):
+    p, tickets, releases, rows, strands = _board_inputs(tmp_path)
+    (tmp_path / "planning" / "RELEASES.md").write_text(
+        "## Versions\n\n| version | line | state |\n| --- | --- | --- |\n"
+        "| 3.0.0 | feature/v3.0 | testing |\n| <script> | feature/v3.0 | testing |\n")
+    from sf_status import planning
+    got = train.board_entry(p, tickets, planning.load_releases(p), rows, strands, {}, utc(2026, 11, 30))
+    assert got["on_test"] == ["3.0.0 (feature/v3.0)"]
