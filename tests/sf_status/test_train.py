@@ -365,3 +365,83 @@ def test_open_train_strands_helper(w):
     assert train.open_train_strands(w.project, w.state) == ["zug-2-0-0"]
     events.append(w.state, "alpha", {"kind": "report", "strand": "zug-2-0-0", "state": "blocked", "text": "x"})
     assert train.open_train_strands(w.project, w.state) == []
+
+
+# ---- board headline data ---------------------------------------------------------------------------
+
+def test_next_date_skips_skip_dates_and_handles_dst():
+    p = mk()
+    assert train.next_date(p, utc(2026, 12, 1, 17)) == date(2026, 12, 1)
+    assert train.next_date(p, utc(2026, 12, 1, 17, 1)) == date(2026, 12, 8)
+    assert train.next_date(mk(train_skip=["2026-12-08"]), utc(2026, 12, 1, 17, 1)) == date(2026, 12, 15)
+    # DST: 18:00 Berlin is 16:00Z in summer
+    assert train.next_date(p, utc(2026, 3, 31, 15, 59)) == date(2026, 3, 31)
+    assert train.next_date(p, utc(2026, 3, 31, 16, 1)) == date(2026, 4, 7)
+
+
+def test_next_date_bad_settings_and_off():
+    assert train.next_date(mk(train_time="25:99"), utc(2026, 12, 1)) is None
+    assert train.next_date(mk(train_tz="Nowhere/Land"), utc(2026, 12, 1)) is None
+
+
+def test_next_date_gives_up_after_60_days():
+    skips = [(date(2026, 12, 1) + timedelta(days=7 * i)).isoformat() for i in range(12)]
+    assert train.next_date(mk(train_skip=skips), utc(2026, 12, 1, 12)) is None
+
+
+BOARD_TICKETS = """| nr | since | kind | rank | state | version | summary |
+| --- | --- | --- | --- | --- | --- | --- |
+| T-1 | 2026-01-01 | bug | normal | planned | 2.1.0 | in |
+| T-2 | 2026-01-01 | bug | normal | in-train | 2.1.0 | in too |
+| T-3 | 2026-01-01 | bug | normal | planned | 2.2.0 | not a candidate |
+| T-4 | 2026-01-01 | bug | normal | in-progress | | working |
+| T-5 | 2026-01-01 | bug | normal | planned | | working via plan |
+| T-6 | 2026-01-01 | bug | normal | new | | waits |
+| T-7 | 2026-01-01 | bug | normal | assessed | | waits |
+| T-8 | 2026-01-01 | bug | normal | planned | | plan row finished |
+"""
+BOARD_PLAN = ("| short | strand | approval | starts when | branch | tickets |\n"
+              "| --- | --- | --- | --- | --- | --- |\n"
+              "| s5 | Five | yes - \"ok\" | now | b | T-4, T-5 |\n"
+              "| s8 | Eight | yes - \"ok\" | now | b | T-8 |\n"
+              "| s9 | Nine | no | now | b | T-6 |\n")
+
+
+def _board_inputs(tmp_path):
+    from sf_status import planning, wave_plan
+    from sf_status.collect import StrandView
+    f = tmp_path / "planning"
+    f.mkdir()
+    (f / "TICKETS.md").write_text(BOARD_TICKETS)
+    (f / "RELEASES.md").write_text(
+        "## Versions\n\n| version | line | state |\n| --- | --- | --- |\n"
+        "| 2.1.0 | feature/v2.0 | planned |\n| 2.2.0 | feature/v2.0 | planned |\n"
+        "| 3.0.0 | feature/v3.0 | testing |\n")
+    p = mk(folder=str(tmp_path))
+    strands = {"alpha/s5": StrandView("alpha", "s5", "running", "", None, ""),
+               "alpha/s8": StrandView("alpha", "s8", "done", "", None, ""),
+               "alpha/s9": StrandView("alpha", "s9", "running", "", None, "")}
+    rows = wave_plan.parse_wave_plan(BOARD_PLAN)
+    return p, planning.load_tickets(p), planning.load_releases(p), rows, strands
+
+
+def test_board_entry_counts(tmp_path):
+    p, tickets, releases, rows, strands = _board_inputs(tmp_path)
+    marker = {"alpha": {"questions": {"train-2026-12-01": {"state": "open", "candidates": ["2.1.0"]},
+                                      "train-2026-11-24": {"state": "unclear"},
+                                      "train-2026-11-17": {"state": "approved"}}}}
+    got = train.board_entry(p, tickets, releases, rows, strands, marker, utc(2026, 11, 30))
+    assert got == {"project": "alpha", "date": "2026-12-01", "skipped": False, "in": 2, "working": 2,
+                   "waiting": 4, "on_test": ["3.0.0 (feature/v3.0)"], "question": "train-2026-12-01"}
+
+
+def test_board_entry_marks_skipped_date(tmp_path):
+    p, tickets, releases, rows, strands = _board_inputs(tmp_path)
+    marker = {"alpha": {"dates": {"2026-12-01": "skipped"}}}
+    assert train.board_entry(p, tickets, releases, rows, strands, marker, utc(2026, 11, 30))["skipped"] is True
+
+
+def test_board_entry_without_files_is_zero():
+    got = train.board_entry(mk(), None, None, [], {}, {}, utc(2026, 11, 30))
+    assert got == {"project": "alpha", "date": "2026-12-01", "skipped": False, "in": 0, "working": 0,
+                   "waiting": 0, "on_test": [], "question": None}

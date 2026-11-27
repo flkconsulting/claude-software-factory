@@ -11,6 +11,7 @@ from . import checks, effects, events, stall, usage as usage_mod
 from .config import ServerConfig
 from .planning import load_releases, load_tickets, overview
 from .projects import SYSTEM_STRAND, Project, project_for_path
+from .wave_plan import parse_wave_plan
 
 REPORT_STATES = {"DONE": "done", "BLOCKED": "blocked"}
 NOTICE_DAYS = 7
@@ -49,6 +50,7 @@ class State:
     triggers: dict | None = None  # supervisor/triggers.json content, filled by render.write
     local: list[dict] = field(default_factory=list)  # open local step requests, oldest first
     tickets: list[dict] = field(default_factory=list)  # planning.overview per project with a TICKETS.md
+    train: list[dict] = field(default_factory=list)  # train.board_entry per project with the train on
 
 
 _load_json = events.load_json
@@ -372,6 +374,22 @@ def collect(cfg: ServerConfig, projects: list[Project], now: float,
             m = marker.get(f"{p.name}-{strand}", {})
             view.stalled = bool(m.get("reported")) and not m.get("gone") and view.state in ("running", "waiting")
             result.strands[f"{p.name}/{strand}"] = view
+    train_entries = []
+    if any(p.train for p in projects):
+        from . import train as train_mod  # train imports collect
+        train_marker = train_mod.load_marker(state_dir)
+        for p in projects:
+            if not p.train:
+                continue
+            try:
+                plan = (Path(p.folder) / p.wave_plan).read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                plan = ""
+            entry = train_mod.board_entry(p, load_tickets(p), load_releases(p), parse_wave_plan(plan),
+                                          result.strands, train_marker, when)
+            if entry["date"] is not None:
+                train_entries.append(entry)
+    result.train = train_entries
     all_events = sort_events(all_events)
     result.questions = sort_events(open_q)
     result.tasks = sort_events(list(tasks.values()))

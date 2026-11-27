@@ -522,3 +522,12 @@ def test_state_tickets_filled_only_with_file(cfg, state, projects, fake):
     got = collect.collect(cfg, projects, NOW).tickets
     assert [o["project"] for o in got] == ["alpha"]
     assert got[0]["bugs"][0]["nr"] == "T-1" and got[0]["next"] == []
+
+
+def test_state_train_only_with_train_on(cfg, state, projects, fake):
+    assert collect.collect(cfg, projects, NOW).train == []
+    projects[0].train = True
+    got = collect.collect(cfg, projects, NOW).train
+    assert len(got) == 1 and got[0]["project"] == "alpha"
+    assert (got[0]["in"], got[0]["working"], got[0]["waiting"], got[0]["on_test"]) == (0, 0, 0, [])
+    assert not (state / "markers" / "train.json").exists()

@@ -335,3 +335,46 @@ def test_attention_tickets_drops_free_text_numbers_and_ignores_rank_case():
     got = render.attention(make_state(tickets=[_overview(bugs=[
         bug("T-5", "Critical"), bug("free text", "critical"), bug("", "critical")])]))
     assert got["tickets"] == [{"project": "alpha", "nr": "T-5"}]
+
+
+def _train(**kw):
+    e = {"project": "alpha", "date": "2026-12-01", "skipped": False, "in": 3, "working": 1, "waiting": 2,
+         "on_test": ["3.0.0 (feature/v3.0)"], "question": None}
+    e.update(kw)
+    return e
+
+
+def test_headline_above_first_section():
+    s = make_state(train=[_train()])
+    md = render.render_markdown(s, NOW)
+    assert md.index("Generated:") < md.index("Next train: 2026-12-01 - 3 in / 1 in progress / 2 waiting for you") \
+        < md.index("On the test environment: 3.0.0 (feature/v3.0)") < md.index("## Needs you")
+    h = render.render_html(s, NOW)
+    assert h.index("Generated:") < h.index("Next train: 2026-12-01") < h.index("On the test environment") \
+        < h.index("<h2>Needs you")
+
+
+def test_no_headline_without_train():
+    s = make_state()
+    assert "Next train" not in render.render_markdown(s, NOW)
+    assert render.render_markdown(s, NOW) == render.render_markdown(make_state(train=[]), NOW)
+    assert render.render_markdown(s, NOW).startswith("# Status\n\nGenerated: 2026-11-22T12:00:00Z\n\n## Needs you")
+    assert "<p>Generated: 2026-11-22T12:00:00Z</p>\n<h2>Needs you" in render.render_html(s, NOW)
+
+
+def test_headline_none_on_test_and_skipped():
+    md = render.render_markdown(make_state(train=[_train(on_test=[], skipped=True)]), NOW)
+    assert "Next train: 2026-12-01 (skipped) - 3 in" in md
+    assert "On the test environment: none" in md
+
+
+def test_headline_multiple_projects_prefixed():
+    md = render.render_markdown(make_state(train=[_train(), _train(project="beta", on_test=[])]), NOW)
+    assert "alpha: Next train: 2026-12-01" in md and "beta: Next train: 2026-12-01" in md
+    assert "beta: On the test environment: none" in md
+
+
+def test_headline_escapes_free_text():
+    s = make_state(train=[_train(project="a<script>", on_test=["1.0.0 (<script>x</script>\x1b[31m)"])])
+    assert "<script>" not in render.render_markdown(s, NOW)
+    assert "<script>" not in render.render_html(s, NOW)

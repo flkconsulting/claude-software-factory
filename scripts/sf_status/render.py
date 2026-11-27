@@ -234,6 +234,21 @@ def _sections(state: State) -> list[tuple[str, list]]:
     return secs
 
 
+def _headline(state: State) -> list[str]:
+    """Train lines under "Generated:"; empty without a project that has the train on."""
+    entries = [t for t in _dicts(state.train) if t.get("date")]
+    out = []
+    for t in entries:
+        prefix = f"{_line(_get(t, 'project', '?'), 80)}: " if len(entries) > 1 else ""
+        skipped = " (skipped)" if t.get("skipped") else ""
+        out.append(f"{prefix}Next train: {_line(t['date'], 40)}{skipped} - {_line(_get(t, 'in', 0), 10)} in / "
+                   f"{_line(_get(t, 'working', 0), 10)} in progress / {_line(_get(t, 'waiting', 0), 10)} waiting for you")
+        on_test = t.get("on_test")
+        names = ", ".join(_line(v, 80) for v in on_test) if isinstance(on_test, list) and on_test else "none"
+        out.append(f"{prefix}On the test environment: {names}")
+    return out
+
+
 def _stamp(now: datetime) -> str:
     return now.strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -253,6 +268,8 @@ def _fence(text: str) -> str:
 
 def render_markdown(state: State, now: datetime) -> str:
     out = ["# Status", "", f"Generated: {_stamp(now)}", ""]
+    for line in _headline(state):
+        out += [_md(line), ""]
     for title, blocks in _sections(state):
         out += [f"## {title}", ""]
         for blk in blocks:
@@ -281,6 +298,7 @@ def render_html(state: State, now: datetime) -> str:
     e = html.escape
     out = ["<!DOCTYPE html>", '<html lang="en"><head><meta charset="utf-8">', "<title>Status</title>",
            f"<style>{CSS}</style></head><body>", "<h1>Status</h1>", f"<p>Generated: {e(_stamp(now))}</p>"]
+    out += [f"<p>{e(line)}</p>" for line in _headline(state)]
     for title, blocks in _sections(state):
         out.append(f"<h2>{e(title)}</h2>")
         in_list = False

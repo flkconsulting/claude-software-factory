@@ -62,6 +62,56 @@ def check(project: Project, marker: dict, now: datetime) -> Due | None:
     return Due(key, "due" if now - at <= CATCH_UP else "missed")
 
 
+def next_date(project: Project, now: datetime) -> date | None:
+    """Next cut-off day whose moment is not before `now`, not in train_skip, at most 60 days ahead; None when unusable."""
+    if not project.train:
+        return None
+    try:
+        weekday, _, zone = _settings(project)
+        today = now.astimezone(zone).date()
+        for i in range(61):
+            day = today + timedelta(days=i)
+            if day.weekday() == weekday and day.isoformat() not in project.train_skip and cutoff(project, day) >= now:
+                return day
+    except (ValueError, KeyError, OSError, OverflowError):
+        pass
+    return None
+
+
+TICKET_NR_RE = re.compile(r"T-\d+")
+
+
+def board_entry(project: Project, tickets, releases, rows, strands, marker: dict, now: datetime) -> dict:
+    """Numbers for the board headline of one project; missing files count as zero.
+
+    tickets: planning.TicketTable | None, releases: planning.Releases | None, rows: parsed wave plan rows,
+    strands: {"<project>/<short>": StrandView}, marker: the train marker (see load_marker)."""
+    day = next_date(project, now)
+    entry = marker.get(project.name) if isinstance(marker.get(project.name), dict) else {}
+    dates = entry.get("dates") if isinstance(entry.get("dates"), dict) else {}
+    questions = entry.get("questions") if isinstance(entry.get("questions"), dict) else {}
+    rows_t = tickets.rows if tickets is not None else []
+    state = lambda t: t.state.lower()  # noqa: E731
+    versions = {v.version for v in candidates(releases)} if releases is not None else set()
+    working = {t.nr for t in rows_t if state(t) == "in-progress"}
+    for r in rows:
+        view = strands.get(f"{project.name}/{r.short}")
+        if r.approved and view is not None and view.state in ("running", "waiting"):
+            working.update(TICKET_NR_RE.findall(r.tickets))
+    open_q = sorted(qid for qid, q in questions.items() if isinstance(q, dict) and q.get("state") in ("open", "unclear"))
+    return {
+        "project": project.name,
+        "date": day.isoformat() if day else None,
+        "skipped": bool(day) and dates.get(day.isoformat()) == "skipped",
+        "in": sum(1 for t in rows_t if state(t) in ("planned", "in-train") and t.version in versions),
+        "working": len(working),
+        "waiting": sum(1 for t in rows_t if state(t) in ("new", "assessed")) + len(open_q),
+        "on_test": [f"{v.version} ({v.line})" for v in (releases.versions if releases is not None else [])
+                    if v.state.lower() == "testing"],
+        "question": open_q[-1] if open_q else None,
+    }
+
+
 def load_marker(state_dir: Path) -> dict:
     try:
         data = json.loads((Path(state_dir) / "markers" / "train.json").read_text(encoding="utf-8"))
