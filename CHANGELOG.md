@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented in this file.
 
-## [Unreleased]
+## [0.6.4]
 
 ### Changed
 - `sf-status dismiss` records who dismissed in the optional field `by` of the `dismiss` event: `--by <name>`, default `$SF_SOURCE`, else the login name. Older events without `by` stay valid.
