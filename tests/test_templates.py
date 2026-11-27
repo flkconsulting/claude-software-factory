@@ -158,3 +158,19 @@ def test_global_rule_reminders():
     assert "~/.claude/reminders.md" in text
     assert "CronCreate" in text
     assert "across sessions" in text
+
+
+def test_planning_templates_parse_empty():
+    import sys
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from sf_status.planning import parse_releases, parse_tickets
+    tickets = parse_tickets((TEMPLATES / "planning" / "TICKETS.md").read_text(encoding="utf-8"))
+    assert tickets.rows == [] and tickets.missing == []
+    releases = parse_releases((TEMPLATES / "planning" / "RELEASES.md").read_text(encoding="utf-8"))
+    assert releases.versions == [] and releases.deliveries == [] and releases.missing == []
+
+
+def test_planning_readme_lists_tickets():
+    text = (TEMPLATES / "planning" / "README.md").read_text(encoding="utf-8")
+    for needle in ("TICKETS.md", "RELEASES.md", "T-", "agents never write `assessed`"):
+        assert needle in text
