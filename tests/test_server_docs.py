@@ -83,3 +83,14 @@ def test_readme_lists_local_watcher():
     text = (ROOT / "README.md").read_text(encoding="utf-8")
     table = text.split("## What is in the box", 1)[1].split("\n## ", 1)[0]
     assert "local-watch.sh" in table
+
+
+def test_doc_tickets_section():
+    text = _doc()
+    section = text.split("\n## Tickets", 1)[1].split("\n## ", 1)[0]
+    for needle in ("TICKETS.md", "RELEASES.md", "ticket_critical_hours", "sf-status tickets",
+                   "sf-status backport", "git cherry", "## Versions", "## Deliveries",
+                   "once per ticket and finding", "customer A"):
+        assert needle in section, needle
+    table = text.split("## Server settings", 1)[1].split("\n## ", 1)[0]
+    assert "`ticket_critical_hours`" in table

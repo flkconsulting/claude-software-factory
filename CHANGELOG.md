@@ -2,6 +2,17 @@
 
 All notable changes to this project are documented in this file.
 
+## [Unreleased]
+
+### Added
+- Readers for `planning/TICKETS.md` and `planning/RELEASES.md` (tolerant: BOM, CRLF, comments, unknown columns) and checks on both files. Findings raise one notice per ticket and finding (marker `markers/tickets.json`); they carry only fixed words, numbers and versions. The check also runs without a release train, as soon as a file exists. Projects without these files see no change.
+- Setting `server.ticket_critical_hours` (default 24): a critical bug that is still `new` or `assessed` after this time raises one warning.
+- Backport check: for versions in state `testing` or `accepted`, `git cherry <line> release/<version>` finds commits missing on the line; one warning per commit, read only, a missing branch is not an error.
+- `sf-status backport --project <name> --version <version>` and `sf-status tickets [--project <name>] [--train <date>]`.
+- Board section "Tickets" (open bugs, next versions, new tickets) and the key `tickets` in `attention.json` for open critical bugs.
+- Optional wave plan column `tickets`.
+- Templates `templates/planning/TICKETS.md` and `RELEASES.md`; docs in `docs/05-server-setup.md`, section "Tickets".
+
 ## [0.6.4]
 
 ### Changed

@@ -280,6 +280,54 @@ On the board:
 
 Limits: the watcher lives only in the chat session and is gone when the session ends; start it again in a new session. Open requests run again after a session change, so every local step must be repeatable.
 
+## Tickets
+
+A project can keep its tickets and releases in two files in its planning folder (the folder of the wave plan file): `TICKETS.md` and `RELEASES.md`. The templates are in `templates/planning/`. The cron run reads them read only, checks them and shows them on the board. The check also runs without a release train, as soon as the file exists. A project without these files sees no change: no notice, no marker, no board section and no `tickets` key in `attention.json`.
+
+`TICKETS.md` has one row per ticket. Required columns: `nr` (`T-<number>`), `since` (`YYYY-MM-DD`), `kind` (`bug` or `feature`), `rank` (bug: `critical`, `high`, `normal`; feature: `high`, `normal`, `low`), `state` and `version`. Optional columns: `effort` (`S`, `M`, `L`), `source` (anonymized, for example "customer A, mail") and `summary`. States: `new`, `assessed`, `planned`, `in-progress`, `in-train`, `shipped`, `deferred`, `rejected`; from `planned` on a target `version` is required.
+
+`RELEASES.md` holds two tables under the headings `## Versions` and `## Deliveries`. Versions: required `version`, `line` (the work branch the version is built from) and `state` (`planned`, `testing`, `accepted`, `released`); optional `train` (date of the release train) and `notes`. Deliveries: required `customer` (anonymized, for example "customer A") and `version`; optional `planned`, `done` (both `YYYY-MM-DD`) and `notes`.
+
+Who writes which state (short form of the rules in the planning README): anyone may add a ticket as `new`. Agents never write `assessed`, `planned`, `deferred` or `rejected`; these are set only on the user's instruction. Ticket numbers run on and are never reused. Do not put real customer names or free text with secrets into either file.
+
+The readers are tolerant: unknown columns and surplus cells are ignored, a BOM, CRLF line ends, HTML comments and a file with only the header row cause no error and no finding.
+
+### Checks
+
+Every finding carries only fixed words, numbers, versions and commit short forms, never text from `summary`, `source` or `notes`.
+
+- Ticket fields: `number-invalid`, `number-duplicate`, `kind-unknown`, `rank-unknown`, `effort-unknown`, `state-unknown`, `since-invalid`, `column-missing-<name>` for a missing required column.
+- Ticket and version: `version-missing` (state needs a version), `version-test-suffix` (a `-test.N` build instead of the release version), `version-unknown` (version not in `RELEASES.md`; checked only when that file exists).
+- Critical bugs: `critical-unplanned` is raised for a ticket with `kind` `bug`, `rank` `critical` and state `new` or `assessed` once `ticket_critical_hours` (settings table above) have passed since 00:00 UTC of `since`. It is a warning and so appears in "Needs you".
+- Releases: `line-missing`, `state-unknown`, `version-duplicate`, `column-missing-<name>`, and for deliveries `delivery-version-unknown` and `delivery-version-unreleased`.
+
+All findings are level `info` except `critical-unplanned` and `backport-missing`, which are `warning`.
+
+### Notices
+
+A finding raises one notice once per ticket and finding, not once per run. The notice is titled `ticket <id>: <code>` or `release <version>: <code>` and stays on the board until it is 7 days old or dismissed (`sf-status dismiss`). The marker `markers/tickets.json` forgets a finding once it is solved; if it comes back, it is reported again. Marker keys are `<project>/<id>/<code>` for tickets (`id` is `T-<n>`, `row<n>` when the number is invalid, `tickets-file` for file findings). Release findings use ids prefixed with `release-`: `release-<version>`, `release-row<n>`, `release-delivery<n>`, `releases-file`.
+
+Findings on rows without a valid number or version (`row<n>`, `delivery<n>`) are keyed by position. Inserting or removing rows above them changes the key, so the same finding can notify again.
+
+### Backport check
+
+For every version in state `testing` or `accepted`, the cron run compares the release branch with its line using `git cherry <line> release/<version>` in the project folder. Lines starting with `+` are commits that are on `release/<version>` but not on the line. Each missing commit raises one warning `backport <version>: <sha12> missing`, once per commit (marker key `<project>/backport-<version>/<sha12>/missing`). The check only reads. A missing branch, a git failure or a `line` or `version` that does not look like a plain branch or version name means "not checkable": no error and no notice, and commits reported earlier are not reported again when the branch comes back. Values from the file are validated before they reach git.
+
+### Board and attention
+
+When a project has `TICKETS.md`, `STATUS.md` and `status.html` get the section "Tickets" with, per project, the open bugs, the next versions (state `planned` or `testing`, with their tickets) and the new tickets that are not yet assessed. `attention.json` gets the key `tickets`, a list of `{project, nr}` for open critical bugs; the key is absent when there are none.
+
+The optional column `tickets` of the wave plan (`templates/server/wave-plan.md`) names the tickets a strand works on. It is free text for the human and not part of the row hash.
+
+### Commands
+
+```bash
+sf-status tickets [--project <name>] [--train <YYYY-MM-DD>]
+sf-status backport --project <name> --version <version>
+```
+
+`sf-status tickets` prints one JSON line per ticket (the project and all ticket columns); `--train` keeps only tickets whose version carries that train date in `RELEASES.md`. It exits 0 also when there are no files, 1 for an unknown project and 2 for a bad date. `sf-status backport` prints one JSON line per missing commit (`version`, `line`, `commit`) and exits 1 when something is missing, 0 when nothing is, and 2 when the version is unknown or not checkable (one line `sf-status: ...` on stderr). A release step can use it as a precondition.
+
 ## Switching off
 
 You can stop the server layer at any time; variant A and the hooks keep working.
