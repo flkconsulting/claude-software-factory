@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented in this file.
 
-## [Unreleased]
+## [0.6.2]
 
 ### Added
 - `sf-status dismiss --project <name> (--time <iso> [--title <t>] | --strand <s> | --all)`: a human removes notices from the status board. It appends a `dismiss` event (the event file stays append-only); `collect` hides the dismissed notices, and the board shows the ready-to-copy command under each notice (`STATUS.md` and `status.html`).
