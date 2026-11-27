@@ -458,3 +458,43 @@ def test_ticket_checks_without_train(cfg, state, projects, fake):
     _tickets_file(projects, BROKEN)
     collect.collect(cfg, projects, NOW)
     assert len(_ticket_notices(state)) == 1
+
+
+RELEASES = ("## Versions\n\n| version | line | state |\n| --- | --- | --- |\n"
+            "| 2.0.0 | release/2.0 | testing |\n")
+
+
+def _releases_file(projects, text=RELEASES):
+    from pathlib import Path
+    d = Path(projects[0].folder) / "planning"
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "RELEASES.md").write_text(text, encoding="utf-8")
+
+
+def _backport_notices(state):
+    return [n["title"] for n in of_kind(state, "notice") if n["title"].startswith("backport ")]
+
+
+def test_backport_notice_once_per_commit(cfg, state, projects, fake, monkeypatch):
+    _releases_file(projects)
+    answer = {"v": ["a" * 40, "b" * 40]}
+    monkeypatch.setattr(effects, "git_cherry", lambda *a: answer["v"])
+    for i in range(3):
+        collect.collect(cfg, projects, NOW + i * 60)
+    assert sorted(_backport_notices(state)) == ["backport 2.0.0: " + "a" * 12 + " missing",
+                                                "backport 2.0.0: " + "b" * 12 + " missing"]
+    answer["v"] = ["b" * 40]
+    collect.collect(cfg, projects, NOW + 300)
+    assert len(_backport_notices(state)) == 2
+    answer["v"] = None  # branch gone or git failed: old keys are kept
+    collect.collect(cfg, projects, NOW + 360)
+    answer["v"] = ["b" * 40]  # branch is back, b is still missing
+    collect.collect(cfg, projects, NOW + 420)
+    assert len(_backport_notices(state)) == 2
+
+
+def test_backport_without_releases_file_no_git_call(cfg, state, projects, fake, monkeypatch):
+    calls = []
+    monkeypatch.setattr(effects, "git_cherry", lambda *a: calls.append(a) or [])
+    collect.collect(cfg, projects, NOW)
+    assert calls == []

@@ -319,3 +319,44 @@ def test_attention_filters_by_project(env, capsys):
 def test_attention_without_file_exit_1(env, capsys):
     assert cli.main(["attention"]) == 1
     assert "attention.json" in capsys.readouterr().err
+
+
+def _releases(env, state="testing", line="release/2.0"):
+    from pathlib import Path
+    folder = Path(projects.load(env)[0].folder) / "planning"
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / "RELEASES.md").write_text(
+        f"## Versions\n\n| version | line | state |\n| --- | --- | --- |\n| 2.0.0 | {line} | {state} |\n",
+        encoding="utf-8")
+
+
+def _backport(*extra):
+    return cli.main(["backport", "--project", "p", "--version", "2.0.0", *extra])
+
+
+def test_backport_exit_codes_and_output(env, monkeypatch, capsys):
+    _releases(env)
+    monkeypatch.setattr(effects, "git_cherry", lambda *a: ["abc123"])
+    assert _backport() == 1
+    out = capsys.readouterr().out.strip().splitlines()
+    assert [json.loads(x) for x in out] == [{"version": "2.0.0", "line": "release/2.0", "commit": "abc123"}]
+    monkeypatch.setattr(effects, "git_cherry", lambda *a: [])
+    assert _backport() == 0
+    assert capsys.readouterr().out == ""
+    assert cli.main(["backport", "--project", "p", "--version", "9.9.9"]) == 2
+    assert capsys.readouterr().err.startswith("sf-status: ")
+    monkeypatch.setattr(effects, "git_cherry", lambda *a: None)
+    assert _backport() == 2
+    err = capsys.readouterr().err
+    assert err.startswith("sf-status: ") and err.count("\n") == 1
+
+
+def test_backport_ignores_state(env, monkeypatch, capsys):
+    _releases(env, state="released")
+    monkeypatch.setattr(effects, "git_cherry", lambda *a: ["abc123"])
+    assert _backport() == 1
+
+
+def test_backport_no_releases_file_exit_2(env, capsys):
+    assert _backport() == 2
+    assert capsys.readouterr().err.startswith("sf-status: ")

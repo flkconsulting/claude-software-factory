@@ -8,9 +8,9 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
-from . import events
-from .planning import Releases, TicketTable
-from .projects import SYSTEM_STRAND
+from . import effects, events
+from .planning import Releases, TicketTable, Version
+from .projects import SYSTEM_STRAND, Project
 
 MARKER = "tickets.json"
 KINDS = ("bug", "feature")
@@ -23,6 +23,7 @@ VERSION_STATES = ("planned", "testing", "accepted", "released")
 WARNING_CODES = ("critical-unplanned", "backport-missing")
 _NR = re.compile(r"^T-\d+$")
 _DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+_VERSION = re.compile(r"^\d+\.\d+\.\d+$")
 _SAFE = re.compile(r"^[A-Za-z0-9._-]{1,40}$")
 
 TEXTS = {
@@ -166,6 +167,40 @@ def release_findings(releases: Releases) -> list[Finding]:
             elif has("versions.state") and state[d.version] != "released":
                 out.append(_finding("release", ident, "delivery-version-unreleased", src))
     return _unique(out)
+
+
+def missing_backports(folder: Path, version: Version) -> list[str] | None:
+    """Commits of release/<version> that are not on its line; None if not checkable.
+
+    Values that fail validation never reach git. The version state is ignored."""
+    if not _VERSION.fullmatch(version.version) or not events.BRANCH_RE.fullmatch(version.line):
+        return None
+    return effects.git_cherry(folder, version.line, f"release/{version.version}")
+
+
+def backport_findings(project: Project, releases: Releases) -> tuple[list[Finding], tuple[str, ...]]:
+    """Missing backports of versions in testing or accepted, one finding per commit.
+
+    The second part lists the marker prefixes of versions that could not be checked, so that
+    emit_once keeps their earlier keys (no repeated notice when the branch comes back)."""
+    out: list[Finding] = []
+    keep: list[str] = []
+    if "versions.version" in releases.missing:
+        return out, ()
+    for v in releases.versions:
+        if v.state not in ("testing", "accepted"):
+            continue
+        commits = missing_backports(Path(project.folder), v)
+        if commits is None:
+            keep.append(f"{project.name}/backport-{v.version}/")
+            continue
+        for sha in commits:
+            short = sha[:12]
+            out.append(Finding(f"backport-{v.version}/{short}/missing", "backport-missing", "warning",
+                               f"backport {v.version}: {short} missing",
+                               f"backport {v.version}: {short} is on release/{v.version} but not on {v.line}. "
+                               "See planning/RELEASES.md."))
+    return _unique(out), tuple(keep)
 
 
 def _load(path: Path) -> set[str]:

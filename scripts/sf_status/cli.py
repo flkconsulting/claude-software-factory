@@ -10,8 +10,9 @@ from dataclasses import fields
 from pathlib import Path
 from typing import Callable
 
-from . import collect, effects, events, launch, projects, render, supervisor, wake
+from . import checks, collect, effects, events, launch, projects, render, supervisor, wake
 from .config import DEFAULT_STATE_DIR, ServerConfig, load_server_config
+from .planning import load_releases
 
 
 def _config() -> ServerConfig | None:
@@ -301,6 +302,35 @@ def _run_attention(args) -> int:
                 for k, v in data.items() if isinstance(v, list)}
     print(json.dumps(data, ensure_ascii=False, indent=1))
     return 0
+
+
+def _add_backport(sub) -> None:
+    p = sub.add_parser("backport", help="list commits of release/<version> missing on its line (read only)")
+    p.add_argument("--project", required=True)
+    p.add_argument("--version", required=True)
+
+
+def _run_backport(args) -> int:
+    """Exit 0 nothing missing, 1 something missing (one JSON line each), 2 unknown or not checkable."""
+    cfg = _config()
+    if cfg is None:
+        return 2
+    project = _project(args.project, Path(cfg.state_dir))
+    if project is None:
+        return 2
+    releases = load_releases(project)
+    version = next((v for v in releases.versions if v.version == args.version), None) if releases else None
+    if version is None:
+        print(f"sf-status: version {args.version!r} is not listed in planning/RELEASES.md", file=sys.stderr)
+        return 2
+    commits = checks.missing_backports(Path(project.folder), version)
+    if commits is None:
+        print(f"sf-status: cannot check release/{version.version} against {version.line!r} "
+              "(invalid values, missing branch or git failure)", file=sys.stderr)
+        return 2
+    for sha in commits:
+        print(json.dumps({"version": version.version, "line": version.line, "commit": sha}))
+    return 1 if commits else 0
 
 
 # ---- project registry -------------------------------------------------------
@@ -608,6 +638,7 @@ COMMANDS: dict[str, tuple[Callable, Callable[[argparse.Namespace], int]]] = {
     "notice": (_add_notice, _run_notice),
     "dismiss": (_add_dismiss, _run_dismiss),
     "attention": (_add_attention, _run_attention),
+    "backport": (_add_backport, _run_backport),
     "project": (_add_project, _run_project),
     "run": (_add_run, _run_run),
     "wake": (_add_wake, _run_wake),

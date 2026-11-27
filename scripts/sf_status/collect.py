@@ -323,12 +323,17 @@ def collect(cfg: ServerConfig, projects: list[Project], now: float,
 
     # findings on planning/TICKETS.md and planning/RELEASES.md, one notice per ticket and finding
     found: dict[str, list[checks.Finding]] = {}
+    keep: list[str] = []
     for p in projects:
         tickets, releases = load_tickets(p), load_releases(p)
         found[p.name] = (
             (checks.ticket_findings(tickets, releases, when, cfg.ticket_critical_hours) if tickets is not None else [])
             + (checks.release_findings(releases) if releases is not None else []))
-    checks.emit_once(state_dir, found, when)
+        if releases is not None:
+            backports, unreachable = checks.backport_findings(p, releases)
+            found[p.name] += backports
+            keep.extend(unreachable)
+    checks.emit_once(state_dir, found, when, tuple(keep))
 
     # build the view from the events as they are now
     all_events: list[dict] = []

@@ -27,6 +27,16 @@ def git_config(folder: Path, key: str) -> str | None:
     return out or None
 
 
+def git_cherry(folder: Path, line: str, branch: str) -> list[str] | None:
+    """Commit ids on `branch` that are not on `line` (lines marked "+" by git cherry, read only).
+
+    Patch-equal commits count as arrived. None if git fails, times out or the branch is missing."""
+    r = _run(["git", "-C", str(folder), "cherry", line, branch], timeout=30)
+    if not r or r.returncode != 0:
+        return None
+    return [ln[2:].strip() for ln in r.stdout.splitlines() if ln.startswith("+ ")]
+
+
 def git_remote_head(folder: Path, branch: str) -> str | None:
     """Commit id of a branch on the remote origin; None if unreadable or missing."""
     r = _run(["git", "-C", str(folder), "ls-remote", "--heads", "origin", f"refs/heads/{branch}"],

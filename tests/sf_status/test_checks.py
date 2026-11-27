@@ -169,3 +169,54 @@ def test_release_keys_do_not_collide_with_ticket_keys(tmp_path):
     titles = [e["title"] for e in events.read(tmp_path, "alpha")[0]]
     assert titles.count("ticket row1: state-unknown") == 1
     assert titles.count("release row1: state-unknown") == 1
+
+
+@pytest.fixture
+def cherry(monkeypatch):
+    calls = []
+    answer = {"value": []}
+
+    def fake(folder, line, branch):
+        calls.append((folder, line, branch))
+        return answer["value"]
+    monkeypatch.setattr(checks.effects, "git_cherry", fake)
+    fake.calls, fake.answer = calls, answer
+    return fake
+
+
+@pytest.mark.parametrize("version,line", [
+    ("1.0.0", "-x"), ("1.0.0", "a;b"), ("1.0.0", "a b"), ("1.0", "release/1.0"), ("1.0.0;x", "release/1.0"),
+])
+def test_missing_backports_rejects_hostile_values(cherry, tmp_path, version, line):
+    assert checks.missing_backports(tmp_path, Version(version, line, "testing")) is None
+    assert cherry.calls == []
+
+
+def test_missing_backports_calls_git_for_valid_values(cherry, tmp_path):
+    cherry.answer["value"] = ["abc"]
+    assert checks.missing_backports(tmp_path, Version("1.0.0", "release/1.0", "released")) == ["abc"]
+    assert cherry.calls == [(tmp_path, "release/1.0", "release/1.0.0")]
+
+
+def _proj(tmp_path):
+    from sf_status.projects import Project
+    return Project(name="alpha", title="A", folder=str(tmp_path))
+
+
+def test_backport_findings_only_testing_and_accepted(cherry, tmp_path):
+    cherry.answer["value"] = ["a" * 40, "b" * 40]
+    r = rel(Version("1.0.0", "release/1.0", "planned"), Version("1.1.0", "release/1.1", "released"),
+            Version("2.0.0", "release/2.0", "testing"))
+    found, keep = checks.backport_findings(_proj(tmp_path), r)
+    assert [c[2] for c in cherry.calls] == ["release/2.0.0"]
+    assert [f.key for f in found] == ["backport-2.0.0/" + "a" * 12 + "/missing",
+                                      "backport-2.0.0/" + "b" * 12 + "/missing"]
+    f = found[0]
+    assert (f.code, f.level, f.title) == ("backport-missing", "warning", "backport 2.0.0: " + "a" * 12 + " missing")
+    assert keep == ()
+
+
+def test_backport_unreachable_returns_keep_prefix(cherry, tmp_path):
+    cherry.answer["value"] = None
+    found, keep = checks.backport_findings(_proj(tmp_path), rel(Version("2.0.0", "release/2.0", "accepted")))
+    assert found == [] and keep == ("alpha/backport-2.0.0/",)
