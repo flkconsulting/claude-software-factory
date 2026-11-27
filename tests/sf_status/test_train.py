@@ -123,6 +123,21 @@ CANDS = ["2.1.0", "3.0.0"]
     ("bitte aussetzen", ("skip", None)),
     ("2.1.0 | x", ("unclear", None)),
     ("ausgesetzt, aber 2.1.0?", ("unclear", None)),
+    ("do not release 2.1.0", ("unclear", None)),
+    ("wait with 2.1.0", ("unclear", None)),
+    ("2.1.0 later", ("unclear", None)),
+    ("spaeter 2.1.0", ("unclear", None)),
+    ("sp\u00e4ter 2.1.0", ("unclear", None)),
+    ("2.1.0 abwarten", ("unclear", None)),
+    ("hold 2.1.0", ("unclear", None)),
+    ("never 2.1.0", ("unclear", None)),
+    ("nie 2.1.0", ("unclear", None)),
+    ("2.1.0 ohne Test", ("unclear", None)),
+    ("don't release 2.1.0", ("unclear", None)),
+    ("don\u2019t release 2.1.0", ("unclear", None)),
+    ("dont release 2.1.0", ("unclear", None)),
+    ("doesn't work, 2.1.0", ("unclear", None)),
+    ("won't do 2.1.0", ("unclear", None)),
 ])
 def test_decide_table(text, want):
     assert train.decide(text, CANDS) == want

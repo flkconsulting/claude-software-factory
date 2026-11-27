@@ -52,7 +52,10 @@ def git_commit_path(folder: Path, path: str, message: str) -> bool:
     if not r or r.returncode != 0:
         return False
     r = _run(["git", "-C", str(folder), *who, "commit", "-m", message, "--", path], timeout=60)
-    return bool(r and r.returncode == 0)
+    if r and r.returncode == 0:
+        return True
+    _run(["git", "-C", str(folder), "reset", "-q", "--", path], timeout=30)  # leave nothing staged behind
+    return False
 
 
 def git_remote_head(folder: Path, branch: str) -> str | None:

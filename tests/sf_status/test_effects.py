@@ -91,3 +91,21 @@ def test_git_path_clean_and_commit_path(tmp_path):
 
 def test_git_path_clean_not_a_repo_is_none(tmp_path):
     assert effects.git_path_clean(tmp_path / "missing", "a.txt") is None
+
+
+def test_failed_commit_leaves_index_clean(tmp_path):
+    work = tmp_path / "work"
+    work.mkdir()
+    _git("init", "-b", "main", cwd=work)
+    _commit(work, "a.txt")
+    hook = work / ".git" / "hooks" / "pre-commit"
+    hook.write_text("#!/bin/sh\nexit 1\n")
+    hook.chmod(0o755)
+    original = (work / "a.txt").read_bytes()
+    (work / "a.txt").write_text("x\nadded row\n")
+    assert effects.git_commit_path(work, "a.txt", "chore: a") is False
+    staged = subprocess.run(["git", "-C", str(work), "diff", "--cached", "--name-only"],
+                            capture_output=True, text=True).stdout
+    assert staged == ""
+    (work / "a.txt").write_bytes(original)
+    assert effects.git_path_clean(work, "a.txt") is True

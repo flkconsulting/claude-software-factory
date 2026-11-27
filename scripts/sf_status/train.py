@@ -84,7 +84,9 @@ def save_marker(state_dir: Path, data: dict) -> None:
 
 VERSION_RE = re.compile(r"\d+\.\d+\.\d+")
 QID_RE = re.compile(r"^train-(\d{4}-\d{2}-\d{2})(?:-(\d+))?$")
-NEGATIONS = ("nein", "no", "nicht", "kein", "keine", "warte", "warten", "stop", "stopp", "skip")
+NEGATIONS = ("nein", "no", "not", "nicht", "kein", "keine", "warte", "warten", "wait", "abwarten", "later",
+             "spaeter", "sp\u00e4ter", "hold", "never", "nie", "ohne", "stop", "stopp", "skip",
+             "don't", "dont", "doesn't", "won't")
 SKIP_WORDS = ("ausgesetzt", "aussetzen", "skip")
 TRAIN_PREFIX = "zug-"
 DEFAULT_COLUMNS = ["short", "strand", "approval", "starts when", "branch", "migrations", "may change"]
@@ -116,7 +118,7 @@ def decide(text: str, candidates: list[str]) -> tuple[str, str | None]:
     lower = text.lower()
     if "?" in lower or "|" in lower:
         return "unclear", None
-    words = set(re.findall(r"[^\W\d_]+", lower))
+    words = set(re.findall(r"[^\W\d_]+(?:'[^\W\d_]+)*", lower.replace("\u2019", "'")))
     named = [v for v in candidates if names_version(lower, v)]
     if len(named) == 1:
         return ("unclear", None) if words & set(NEGATIONS) else ("approve", named[0])
