@@ -281,3 +281,30 @@ def test_dismiss_nothing_matched_and_bad_args(env, capsys):
     assert cli.main(["dismiss", "--project", "p", "--all", "--strand", "a"]) == 2
     assert cli.main(["dismiss", "--project", "p"]) == 2
     assert cli.main(["dismiss", "--project", "p", "--all", "--title", "t"]) == 2
+
+
+def _attention(env, data):
+    (env / "attention.json").write_text(json.dumps(data))
+
+
+def test_attention_prints_digest(env, capsys):
+    data = {"questions": [{"project": "p", "id": "a-1", "question": "Q"}], "tasks": [],
+            "notices": [{"project": "q", "strand": "s", "time": "t", "level": "warning", "title": "W"}],
+            "strands": []}
+    _attention(env, data)
+    assert cli.main(["attention"]) == 0
+    assert json.loads(capsys.readouterr().out) == data
+
+
+def test_attention_filters_by_project(env, capsys):
+    _attention(env, {"questions": [], "tasks": [],
+                     "notices": [{"project": "p", "title": "A"}, {"project": "q", "title": "B"}],
+                     "strands": [{"project": "q", "strand": "s", "state": "waiting"}]})
+    assert cli.main(["attention", "--project", "p"]) == 0
+    assert json.loads(capsys.readouterr().out) == {"questions": [], "tasks": [],
+                                                   "notices": [{"project": "p", "title": "A"}], "strands": []}
+
+
+def test_attention_without_file_exit_1(env, capsys):
+    assert cli.main(["attention"]) == 1
+    assert "attention.json" in capsys.readouterr().err

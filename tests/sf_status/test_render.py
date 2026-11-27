@@ -242,3 +242,36 @@ def test_recent_shows_local_request_step():
     s.recent = [{"time": "2026-11-22T10:00:00Z", "project": "alpha", "strand": "s1",
                  "kind": "local_request", "step": "build-ext"}]
     assert "build-ext" in render.render_markdown(s, NOW)
+
+
+def test_attention_lists_what_needs_the_human():
+    s = make_state()
+    s.strands["alpha/s2"] = StrandView("alpha", "s2", "waiting", "2026-11-22T11:00:00Z", None, "needs answer", False)
+    s.strands["beta/s3"] = StrandView("beta", "s3", "blocked", "2026-11-22T11:00:00Z", None, "stuck", False)
+    s.notices = s.notices + [{"level": "info", "title": "FYI", "text": "x", "project": "alpha",
+                              "time": "2026-11-22T10:01:00Z"},
+                             {"level": "approval", "title": "Go?", "text": "y", "project": "beta",
+                              "strand": "s3", "time": "2026-11-22T10:02:00Z"}]
+    got = render.attention(s)
+    assert got["questions"] == [{"project": "alpha", "id": "s1-1", "question": "Which way?"}]
+    assert got["tasks"] == [{"project": "alpha", "id": "t-1", "title": "Do it"}]
+    assert [n["level"] for n in got["notices"]] == ["warning", "approval"]
+    assert got["notices"][1] == {"project": "beta", "strand": "s3", "time": "2026-11-22T10:02:00Z",
+                                 "level": "approval", "title": "Go?"}
+    assert got["strands"] == [{"project": "alpha", "strand": "s2", "state": "waiting"},
+                              {"project": "beta", "strand": "s3", "state": "blocked"}]
+
+
+def test_attention_is_stable_when_only_volatile_fields_change():
+    a = make_state()
+    b = make_state()
+    b.strands["alpha/s1"].since = "2026-11-22T11:59:00Z"
+    b.strands["alpha/s1"].text = "other"
+    b.recent = []
+    assert render.attention(a) == render.attention(b)
+
+
+def test_write_writes_attention_json(tmp_path):
+    render.write(tmp_path, make_state(), NOW)
+    got = json.loads((tmp_path / "attention.json").read_text())
+    assert got == render.attention(make_state())

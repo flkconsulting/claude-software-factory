@@ -2,7 +2,8 @@
 
 render_* are pure (state, now). Free text is stripped of control characters, shortened in
 tables and escaped in HTML. The supervisor triggers travel in State.triggers; write() fills
-that field from supervisor/triggers.json when the file exists.
+that field from supervisor/triggers.json when the file exists. attention() is the part of
+"Needs you" a watcher compares: stable fields only, written as attention.json.
 """
 import dataclasses
 import html
@@ -279,6 +280,26 @@ def render_html(state: State, now: datetime) -> str:
     return "\n".join(out) + "\n"
 
 
+ATTENTION_LEVELS = ("approval", "decision", "warning")
+ATTENTION_STATES = ("waiting", "blocked")
+
+
+def _pick(d: dict, keys: tuple[str, ...]) -> dict:
+    return {k: d[k] for k in keys if k in d}
+
+
+def attention(state: State) -> dict:
+    """What needs the human, without fields that change while nothing new happens."""
+    return {
+        "questions": [_pick(q, ("project", "id", "question")) for q in _dicts(state.questions)],
+        "tasks": [_pick(t, ("project", "id", "title")) for t in _dicts(state.tasks)],
+        "notices": [_pick(n, ("project", "strand", "time", "level", "title")) for n in _dicts(state.notices)
+                    if n.get("level") in ATTENTION_LEVELS],
+        "strands": [{"project": v.project, "strand": v.strand, "state": v.state}
+                    for _, v in sorted(state.strands.items()) if v.state in ATTENTION_STATES],
+    }
+
+
 def _atomic(path: Path, text: str) -> None:
     tmp = path.with_name(path.name + ".tmp")
     tmp.write_text(text, encoding="utf-8")
@@ -299,3 +320,4 @@ def write(state_dir, state: State, now: datetime) -> None:
     full = dataclasses.replace(state, triggers=_load_triggers(state_dir))
     _atomic(state_dir / "STATUS.md", render_markdown(full, now))
     _atomic(state_dir / "status.html", render_html(full, now))
+    _atomic(state_dir / "attention.json", json.dumps(attention(state), ensure_ascii=False, indent=1) + "\n")

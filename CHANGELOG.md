@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented in this file.
 
+## [Unreleased]
+
+### Added
+- `sf-status attention [--project <name>]`: prints `<state-dir>/attention.json`, which each cron run now writes next to the board. It lists only what needs the human (open questions, open tasks, notices of level approval/decision/warning, strands waiting or blocked) with stable fields, so a watcher on the laptop can compare it instead of grepping `STATUS.md`.
+
 ## [0.6.2]
 
 ### Added

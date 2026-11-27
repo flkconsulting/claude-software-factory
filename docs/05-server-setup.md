@@ -178,6 +178,7 @@ The state lives in `<state-dir>`. Three views:
 
 - `<state-dir>/STATUS.md` and `<state-dir>/status.html`: the status board with all sections. The HTML file loads nothing from the internet.
 - Copy it to your laptop: `scp <ssh-target>:<state-dir>/status.html <local-dir>/`, then open it in your browser.
+- `<state-dir>/attention.json`, printed by `sf-status attention [--project <name>]`: only what needs you, as JSON (see "Watching what needs you").
 - Watch a single strand: `ssh <ssh-target>`, then `tmux ls` and `tmux attach -t <project>-<short>`. Leave with `Ctrl-b` then `d`; do not close the session.
 - Grey text in the strand's input line (for example "continue with task 5") is a prompt suggestion of Claude Code, not typed input. It is sent only if someone presses Enter in the pane; answers go through `sf-status answer`, never through the pane.
 - The tmux session of a strand stays open and idle after it reported DONE; nobody ends it automatically. Close it with `tmux kill-session -t <project>-<strand>` when it is no longer needed.
@@ -202,6 +203,18 @@ Notices stay on the board for 7 days. Stall, missing-session and local-step noti
 - All shown notices of the project: `sf-status dismiss --project <name> --all`.
 
 The command prints the time and title of every dismissed notice and exits non-zero when nothing matched. It appends a `dismiss` event; the event file stays append-only and the notice itself is never deleted. The board drops it with the next cron run.
+
+## Watching what needs you
+
+Each cron run also writes `<state-dir>/attention.json`: open questions (`project`, `id`, `question`), open tasks (`project`, `id`, `title`), notices of level `approval`, `decision` or `warning` (`project`, `strand`, `time`, `level`, `title`) and strands in state `waiting` or `blocked` (`project`, `strand`, `state`). It holds no time stamps of the run and no free text of the strands, so it changes only when something new needs you or something is resolved. `sf-status attention` prints it; `--project <name>` keeps only that project. It reads the file and writes nothing.
+
+A chat session on the laptop can wait for a change in the background (`run_in_background`) and ends at the first difference:
+
+```bash
+f(){ ssh <ssh-target> sf-status attention --project <name> | md5; }; a=$(f); while [ "$(f)" = "$a" ]; do sleep 120; done
+```
+
+On wake-up read the section "Needs you" of the board, act, then start the watcher again. Compare this file instead of searching `STATUS.md` with grep: the board escapes markers (`\[warning\]`) and its free text changes all the time. If `sf-status` is not found over ssh, see the `PATH` note under "Local steps".
 
 ## Local steps
 

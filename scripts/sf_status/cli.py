@@ -270,6 +270,28 @@ def _run_dismiss(args) -> int:
     return 0
 
 
+def _add_attention(sub) -> None:
+    p = sub.add_parser("attention", help="print what needs the human as JSON (from the last run)")
+    p.add_argument("--project", help="only this project")
+
+
+def _run_attention(args) -> int:
+    cfg = _config()
+    if cfg is None:
+        return 1
+    path = Path(cfg.state_dir) / "attention.json"
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        print(f"sf-status: cannot read {path}: {e}", file=sys.stderr)
+        return 1
+    if args.project is not None:
+        data = {k: [i for i in v if isinstance(i, dict) and i.get("project") == args.project]
+                for k, v in data.items() if isinstance(v, list)}
+    print(json.dumps(data, ensure_ascii=False, indent=1))
+    return 0
+
+
 # ---- project registry -------------------------------------------------------
 
 def _add_project(sub) -> None:
@@ -574,6 +596,7 @@ COMMANDS: dict[str, tuple[Callable, Callable[[argparse.Namespace], int]]] = {
     "task": (_add_task, _run_task),
     "notice": (_add_notice, _run_notice),
     "dismiss": (_add_dismiss, _run_dismiss),
+    "attention": (_add_attention, _run_attention),
     "project": (_add_project, _run_project),
     "run": (_add_run, _run_run),
     "wake": (_add_wake, _run_wake),
