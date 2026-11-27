@@ -1,5 +1,6 @@
 """Command line entry point; each subcommand registers itself in COMMANDS."""
 import argparse
+import getpass
 import json
 import os
 import re
@@ -223,12 +224,21 @@ def _add_dismiss(sub) -> None:
     g.add_argument("--strand", help="dismiss all shown notices of this strand")
     g.add_argument("--all", action="store_true", help="dismiss all shown notices of the project")
     p.add_argument("--title", help="with --time: title, to tell notices of the same time apart")
+    p.add_argument("--by", help="who dismisses (default: $SF_SOURCE, else the login name)")
+
+
+def _login_name() -> str:
+    try:
+        return getpass.getuser() or "unknown"
+    except (OSError, KeyError):
+        return "unknown"
 
 
 def _run_dismiss(args) -> int:
     if args.title is not None and args.time is None:
         print("sf-status: --title only goes with --time", file=sys.stderr)
         return 2
+    by = args.by or os.environ.get("SF_SOURCE") or _login_name()
     cfg = _config()
     if cfg is None:
         return 1
@@ -240,7 +250,7 @@ def _run_dismiss(args) -> int:
         print(f"sf-status: {e}", file=sys.stderr)
         return 2
     cutoff = collect.cutoff_iso(datetime.now(timezone.utc).timestamp())
-    shown = collect.shown_notices(collect._sorted(history), cutoff)
+    shown = collect.shown_notices(collect.sort_events(history), cutoff)
     if args.time is not None:
         hits = [n for n in shown if n.get("time") == args.time
                 and (args.title is None or n.get("title") == args.title)]
@@ -262,7 +272,8 @@ def _run_dismiss(args) -> int:
         print(f"sf-status: no shown notice to dismiss in project {args.project!r}", file=sys.stderr)
         return 1
     for n in hits:
-        ev = {"kind": "dismiss", "strand": n["strand"], "notice_time": n["time"], "notice_title": n["title"]}
+        ev = {"kind": "dismiss", "strand": n["strand"], "notice_time": n["time"], "notice_title": n["title"],
+              "by": by}
         result = _emit(args, ev, reserved_check=False)
         if isinstance(result, int):
             return result

@@ -276,6 +276,17 @@ def test_dismiss_by_strand_and_all(env):
     assert cli.main(["dismiss", "--project", "p", "--all"]) == 1
 
 
+def test_dismiss_records_who(env, monkeypatch):
+    _notice("a", "one", _recent_time(), env)
+    _notice("a", "two", _recent_time(), env)
+    monkeypatch.setenv("SF_SOURCE", "supervisor")
+    assert cli.main(["dismiss", "--project", "p", "--time", _shown(env)[0]["time"],
+                     "--title", "one", "--by", "frank"]) == 0
+    assert cli.main(["dismiss", "--project", "p", "--all"]) == 0
+    got, _ = events.read(env, "p")
+    assert [e.get("by") for e in got if e["kind"] == "dismiss"] == ["frank", "supervisor"]
+
+
 def test_dismiss_nothing_matched_and_bad_args(env, capsys):
     assert cli.main(["dismiss", "--project", "p", "--time", "2020-01-01T00:00:00Z"]) == 1
     assert cli.main(["dismiss", "--project", "p", "--all", "--strand", "a"]) == 2

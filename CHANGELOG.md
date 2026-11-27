@@ -2,6 +2,15 @@
 
 All notable changes to this project are documented in this file.
 
+## [Unreleased]
+
+### Changed
+- `sf-status dismiss` records who dismissed in the optional field `by` of the `dismiss` event: `--by <name>`, default `$SF_SOURCE`, else the login name. Older events without `by` stay valid.
+- `collect.sort_events` is now public; the CLI no longer reaches into the private `collect._sorted`.
+
+### Fixed
+- `STATUS.md`: the dismiss command under a notice whose title contains backticks (```` ``` ````) no longer breaks out of its code block; the fence is now longer than any backtick run in the command.
+
 ## [0.6.3]
 
 ### Added

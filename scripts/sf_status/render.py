@@ -221,6 +221,12 @@ def _md(text: str) -> str:
     return text
 
 
+def _fence(text: str) -> str:
+    """A backtick fence longer than any backtick run in text, so a title with ``` cannot close it."""
+    longest = max((len(m) for m in re.findall(r"`+", text)), default=0)
+    return "`" * max(3, longest + 1)
+
+
 def render_markdown(state: State, now: datetime) -> str:
     out = ["# Status", "", f"Generated: {_stamp(now)}", ""]
     for title, blocks in _sections(state):
@@ -234,7 +240,8 @@ def render_markdown(state: State, now: datetime) -> str:
             elif kind == "li":
                 out.append(f"- {_md(blk[1])}")
             elif kind == "code":
-                out += ["```", blk[1], "```", ""]
+                fence = _fence(blk[1])
+                out += [fence, blk[1], fence, ""]
             elif kind == "table":
                 out.append("| " + " | ".join(blk[1]) + " |")
                 out.append("|" + " --- |" * len(blk[1]))

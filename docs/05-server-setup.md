@@ -202,7 +202,7 @@ Notices stay on the board for 7 days. Stall, missing-session and local-step noti
 - All shown notices of one strand: `sf-status dismiss --project <name> --strand <strand>`.
 - All shown notices of the project: `sf-status dismiss --project <name> --all`.
 
-The command prints the time and title of every dismissed notice and exits non-zero when nothing matched. It appends a `dismiss` event; the event file stays append-only and the notice itself is never deleted. The board drops it with the next cron run.
+The command prints the time and title of every dismissed notice and exits non-zero when nothing matched. It appends a `dismiss` event that records who dismissed it (`--by <name>`; default `$SF_SOURCE`, else the login name); the event file stays append-only and the notice itself is never deleted. The board drops it with the next cron run.
 
 ## Watching what needs you
 

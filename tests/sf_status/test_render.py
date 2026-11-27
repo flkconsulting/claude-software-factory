@@ -50,6 +50,19 @@ def test_dismiss_line_quotes_title_and_skips_invalid_project():
     assert "sf-status dismiss" not in render.render_markdown(s, NOW)
 
 
+def test_dismiss_code_block_survives_backticks_and_newline():
+    s = make_state()
+    s.notices[0]["title"] = "a\n```\nb ````"
+    md = render.render_markdown(s, NOW)
+    lines = md.splitlines()
+    start = next(i for i, ln in enumerate(lines) if ln.startswith("`````"))
+    assert lines[start] == "`````"
+    end = lines.index("`````", start + 1)
+    block = "\n".join(lines[start + 1:end])
+    assert block.startswith("sf-status dismiss") and block.endswith("b ````'")
+    assert "```" in "\n".join(lines[start + 1:end])
+
+
 def test_pipes_and_newlines_escaped_in_table():
     s = make_state()
     s.strands["alpha/s1"].text = "a|b\nc\r\nd"

@@ -180,3 +180,6 @@ def test_dismiss_event_validated(state):
         events.append(state, "p", {**ok, "notice_title": ""})
     with pytest.raises(ValueError):
         events.append(state, "p", {**ok, "extra": "x"})
+    assert events.append(state, "p", {**ok, "by": "frank"})["by"] == "frank"
+    with pytest.raises(ValueError):
+        events.append(state, "p", {**ok, "by": ""})

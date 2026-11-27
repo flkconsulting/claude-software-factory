@@ -70,7 +70,8 @@ def _iso(ts: float) -> str:
     return datetime.fromtimestamp(ts, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def _sorted(evs: list[dict]) -> list[dict]:
+def sort_events(evs: list[dict]) -> list[dict]:
+    """Events in board order: time, then strand, then kind."""
     return sorted(evs, key=lambda e: (str(e.get("time", "")), str(e.get("strand", "")), str(e.get("kind", ""))))
 
 
@@ -239,7 +240,7 @@ def collect(cfg: ServerConfig, projects: list[Project], now: float,
     report_files = _report_events(state_dir, projects, when)
 
     def load_events(project: str) -> list[dict]:
-        return _sorted(events.read(state_dir, project)[0])
+        return sort_events(events.read(state_dir, project)[0])
 
     per_project = {p.name: load_events(p.name) for p in projects}
     last = {p: _last_reports(evs) for p, evs in per_project.items()}
@@ -363,9 +364,9 @@ def collect(cfg: ServerConfig, projects: list[Project], now: float,
             m = marker.get(f"{p.name}-{strand}", {})
             view.stalled = bool(m.get("reported")) and not m.get("gone") and view.state in ("running", "waiting")
             result.strands[f"{p.name}/{strand}"] = view
-    all_events = _sorted(all_events)
-    result.questions = _sorted(open_q)
-    result.tasks = _sorted(list(tasks.values()))
+    all_events = sort_events(all_events)
+    result.questions = sort_events(open_q)
+    result.tasks = sort_events(list(tasks.values()))
     result.local = sorted(local, key=lambda r: str(r["since"]))
     result.notices = shown_notices(all_events, cutoff)
     result.recent = all_events[-MAX_RECENT:]

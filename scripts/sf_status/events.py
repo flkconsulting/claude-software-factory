@@ -25,7 +25,7 @@ SCHEMA: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
     "task": (("id", "title", "why"), ()),
     "task_done": (("id",), ()),
     "notice": (("level", "title", "text"), ()),
-    "dismiss": (("notice_time", "notice_title"), ()),
+    "dismiss": (("notice_time", "notice_title"), ("by",)),
     "stall": (("session", "minutes"), ()),
     "local_request": (("id", "step", "branch", "commit"), ("note",)),
     "local_result": (("request_id", "state", "text"), ()),
@@ -74,6 +74,8 @@ def _validate(project: str, event: dict) -> None:
         for name in ("notice_time", "notice_title"):
             if not (isinstance(event[name], str) and event[name]):
                 raise ValueError(f"{name} must be a non-empty string")
+        if "by" in event and not (isinstance(event["by"], str) and event["by"]):
+            raise ValueError("by must be a non-empty string")
     if kind == "local_request":
         if not valid_id(event["step"]):
             raise ValueError(f"invalid step: {event['step']!r}")
