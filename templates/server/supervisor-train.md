@@ -1,6 +1,6 @@
 # Supervisor: release train
 
-Read only when a trigger `train:<date>` or `answer:train-...` is in the list. The project runs a weekly release train.
+Read only when a trigger `train:<date>`, `answer:train-...`, `approved:zug-...` or `safety` is in the list. The project runs a weekly release train.
 
 ## `train:<date>`
 
@@ -21,6 +21,6 @@ Read `sf-status tickets`. A critical bug with state `planned` and the version of
 
 ## Start
 
-When the wave plan has a row `zug-<version with dashes>` with approval `yes` (the standard start rules apply): fill `<state-dir>/supervisor/train-start.md` into `<state-dir>/start/<project>/<short>.md`, replacing only `<version>`, `<date>`, `<line>` and `<train-list>`; the worktree comes from `origin/<line>` on the branch `release/<version>`.
+When the wave plan has a row `zug-<version with dashes>` with approval `yes` (the standard start rules apply): fill `<state-dir>/supervisor/train-start.md` into `<state-dir>/start/<project>/<short>.md`, replacing `<project>`, `<worktree>`, `<state-dir>` and `<plugin-dir>` as for any strand, and `<version>`, `<date>`, `<line>` and `<train-list>`; the worktree comes from `origin/<line>` on the branch `release/<version>`.
 
 You never write the wave plan: the approval row comes from `sf-status`.

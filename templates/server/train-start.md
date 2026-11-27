@@ -1,12 +1,12 @@
 # Start file: release train <version>
 
-Strand `zug-<version with dashes>` of project `<project>`. Keep this file short; reference instead of copy. Fill in only `<version>`, `<date>`, `<line>` and `<train-list>`.
+Strand `zug-<version with dashes>` of project `<project>`. Fill in `<project>`, `<worktree>`, `<state-dir>`, `<plugin-dir>` as for any strand, and `<version>`, `<date>`, `<line>`, `<train-list>`. Keep it short; reference, do not copy.
 
 **Model:** sonnet
 
 1. **Task:** release train `<version>` of `<date>`: build the test version of `<version>` and roll it out on the test environment.
 2. **Approval:** the words of the wave plan row `zug-<version with dashes>`, verbatim. The quote covers the push of `release/<version>` and the roll-out on the test environment, nothing else: no tag, no push to `main`, no merge, no production.
-3. **Basis:** branch `release/<version>` from `<line>`; train list `<train-list>` (tickets and commits); project `AGENTS.md` for commands; `planning/TICKETS.md` and `planning/RELEASES.md` in the main checkout.
+3. **Basis:** branch `release/<version>` from `<line>`; train list `<train-list>`; project `AGENTS.md` for commands; `planning/TICKETS.md` and `planning/RELEASES.md` in the main checkout.
 4. **Working folder and branch:** worktree `<worktree>` on branch `release/<version>`; never work in the main checkout, except for the entries in `planning/` named below.
 5. **Steps** (each with its check from `AGENTS.md`):
    1. Cut off: `release/<version>` from `<line>`, the train list only; leave out everything else.

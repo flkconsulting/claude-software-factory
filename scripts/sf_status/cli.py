@@ -175,6 +175,9 @@ def _run_answer(args) -> int:
     except ValueError as e:
         print(f"sf-status: {e}", file=sys.stderr)
         return 2
+    if train.QID_RE.match(args.id) and os.environ.get("SF_SOURCE") == "supervisor":
+        print("sf-status: answers to train questions come from the human, never from the supervisor", file=sys.stderr)
+        return 2
     question = events.open_questions(history).get(args.id)
     if question is None:
         print(f"sf-status: no open question {args.id!r} in project {args.project!r}", file=sys.stderr)

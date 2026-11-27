@@ -233,3 +233,18 @@ def test_supervisor_train_template():
     assert "train:<date>" in task
     assert "<state-dir>/supervisor/train.md" in task
     assert len(task.encode("utf-8")) <= 6144
+
+
+def test_train_start_routing_and_placeholders():
+    task = read("supervisor-task.md")
+    assert "approved:zug-" in task and "train-start.md" in task
+    assert "`safety`" in task and "supervisor/train.md" in task
+    assert len(task.encode("utf-8")) <= 6144
+    sup = read("supervisor-train.md")
+    assert sup.splitlines()[2].count("approved:zug-") == 1 and "`safety`" in sup.splitlines()[2]
+    for text in (sup, read("train-start.md")):
+        assert "<project>" in text and "<worktree>" in text and "<plugin-dir>" in text
+        assert "as for any strand" in text
+        assert "only `<version>`" not in text and "Fill in only" not in text
+    assert len(sup.encode("utf-8")) <= 3072
+    assert len(read("train-start.md").encode("utf-8")) <= 4096

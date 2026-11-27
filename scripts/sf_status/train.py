@@ -98,7 +98,7 @@ def board_entry(project: Project, tickets, releases, rows, strands, marker: dict
         view = strands.get(f"{project.name}/{r.short}")
         if r.approved and view is not None and view.state in ("running", "waiting"):
             working.update(TICKET_NR_RE.findall(r.tickets))
-    open_q = sorted(qid for qid, q in questions.items() if isinstance(q, dict) and q.get("state") in ("open", "unclear"))
+    open_q = sorted(qid for qid, q in questions.items() if isinstance(q, dict) and q.get("state") == "open")
     return {
         "project": project.name,
         "date": day.isoformat() if day else None,
@@ -137,9 +137,11 @@ QID_RE = re.compile(r"^train-(\d{4}-\d{2}-\d{2})(?:-(\d+))?$")
 NEGATIONS = ("nein", "no", "not", "nicht", "kein", "keine", "warte", "warten", "wait", "abwarten", "later",
              "spaeter", "sp\u00e4ter", "hold", "never", "nie", "ohne", "stop", "stopp", "skip",
              "don't", "dont", "doesn't", "won't")
+CONDITIONS = ("aber", "but", "erst", "only", "after", "nach", "wenn", "falls", "if", "unless", "sobald", "once",
+              "morgen", "tomorrow")
 SKIP_WORDS = ("ausgesetzt", "aussetzen", "skip")
 TRAIN_PREFIX = "zug-"
-DEFAULT_COLUMNS = ["short", "strand", "approval", "starts when", "branch", "migrations", "may change"]
+DEFAULT_COLUMNS = ["short", "strand", "approval", "starts when", "branch", "base", "migrations", "may change"]
 
 
 def candidates(rel: Releases) -> list[Version]:
@@ -147,7 +149,8 @@ def candidates(rel: Releases) -> list[Version]:
     seen: set[str] = set()
     out = []
     for v in rel.versions:
-        if not VERSION_RE.fullmatch(v.version) or v.line in seen or v.state.lower() != "planned":
+        if (not VERSION_RE.fullmatch(v.version) or not v.line or not events.BRANCH_RE.fullmatch(v.line)
+                or v.line in seen or v.state.lower() != "planned"):
             continue
         seen.add(v.line)
         out.append(v)
@@ -170,10 +173,11 @@ def decide(text: str, candidates: list[str]) -> tuple[str, str | None]:
         return "unclear", None
     words = set(re.findall(r"[^\W\d_]+(?:'[^\W\d_]+)*", lower.replace("\u2019", "'")))
     named = [v for v in candidates if names_version(lower, v)]
+    blockers = words & (set(NEGATIONS) | set(CONDITIONS))
     if len(named) == 1:
-        return ("unclear", None) if words & set(NEGATIONS) else ("approve", named[0])
+        return ("unclear", None) if blockers else ("approve", named[0])
     if not named and words & set(SKIP_WORDS):
-        return "skip", None
+        return ("unclear", None) if blockers - set(SKIP_WORDS) else ("skip", None)
     return "unclear", None
 
 
@@ -210,14 +214,20 @@ def open_train_strands(project: Project, state_dir: Path, live: list[tuple[str, 
 
 
 def _insert_row(text: str, row: str) -> str:
-    """Text with `row` added after the last line of the table that holds the header (or at the end)."""
+    """Text with `row` added after the last line of the table whose header has the `short` column
+    (as wave_plan.parse_wave_plan finds it); without such a table a new one is appended at the end."""
     nl = "\r\n" if "\r\n" in text else "\n"
     lines = text.splitlines(keepends=True)
     last = None
     for i, line in enumerate(lines):
-        if line.strip().startswith("|"):
+        stripped = line.strip()
+        if last is None:
+            first = stripped.strip("|").split("|")[0].strip().lower() if stripped.startswith("|") else ""
+            if first == "short":
+                last = i
+        elif stripped.startswith("|"):
             last = i
-        elif last is not None and line.strip():
+        elif stripped:
             break  # first non-table text after the table
     if last is None:
         head = "| " + " | ".join(DEFAULT_COLUMNS) + " |"
@@ -329,6 +339,10 @@ def _handle(project: Project, state_dir: Path, now: datetime, entry: dict, q: di
         line = next((v.line for v in (rel.versions if rel else []) if v.version == version), None)
         if line is None:
             q["state"] = "unclear"  # the version vanished from RELEASES.md: ask again
+            return
+        if not line or not events.BRANCH_RE.fullmatch(line):
+            _wait(state_dir, project, now, q, date_, "line is not a valid branch",
+                  f"Train {date_}: the line of {version} in RELEASES.md is empty or not a valid branch name.")
             return
         row = wave_row(_header(text), {
             "short": short, "strand": f"Release train {version}", "approval": f'yes - "{words}"',

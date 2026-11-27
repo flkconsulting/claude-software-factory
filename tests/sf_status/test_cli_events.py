@@ -38,6 +38,24 @@ def test_answer_unknown_question_exit_1(env):
     assert cli.main(["answer", "--project", "p", "--id", "a-9", "yes"]) == 1
 
 
+def test_answer_train_question_refused_for_supervisor(env, monkeypatch, capsys):
+    events.append(env, "p", {"kind": "question", "strand": "supervisor", "id": "train-2026-12-01",
+                             "question": "q", "background": "b", "recommendation": "r"})
+    monkeypatch.setenv("SF_SOURCE", "supervisor")
+    assert cli.main(["answer", "--project", "p", "--id", "train-2026-12-01", "2.1.0"]) == 2
+    err = capsys.readouterr().err
+    assert err.startswith("sf-status:") and err.count("\n") == 1
+    assert [e["kind"] for e in events.read(env, "p")[0]] == ["project_added", "question"]
+    monkeypatch.delenv("SF_SOURCE")
+    assert cli.main(["answer", "--project", "p", "--id", "train-2026-12-01", "2.1.0"]) == 0
+
+
+def test_answer_other_question_still_allowed_for_supervisor(env, monkeypatch):
+    cli.main(_q())
+    monkeypatch.setenv("SF_SOURCE", "supervisor")
+    assert cli.main(["answer", "--project", "p", "--id", "a-1", "yes"]) == 0
+
+
 def test_answer_twice_exit_1(env):
     cli.main(_q())
     assert cli.main(["answer", "--project", "p", "--id", "a-1", "yes"]) == 0

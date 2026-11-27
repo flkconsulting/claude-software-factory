@@ -138,6 +138,17 @@ CANDS = ["2.1.0", "3.0.0"]
     ("dont release 2.1.0", ("unclear", None)),
     ("doesn't work, 2.1.0", ("unclear", None)),
     ("won't do 2.1.0", ("unclear", None)),
+    ("2.1.0 aber erst morgen", ("unclear", None)),
+    ("2.1.0 but only after T-5", ("unclear", None)),
+    ("ja 2.1.0 wenn gruen", ("unclear", None)),
+    ("2.1.0 falls alles passt", ("unclear", None)),
+    ("2.1.0 sobald moeglich", ("unclear", None)),
+    ("2.1.0 if green", ("unclear", None)),
+    ("2.1.0 unless red", ("unclear", None)),
+    ("2.1.0 once T-5 is done", ("unclear", None)),
+    ("2.1.0 tomorrow", ("unclear", None)),
+    ("bitte nicht aussetzen", ("unclear", None)),
+    ("do not skip", ("unclear", None)),
 ])
 def test_decide_table(text, want):
     assert train.decide(text, CANDS) == want
@@ -166,6 +177,13 @@ RELEASES = """# Releases
 def test_candidates_one_per_line_only_planned():
     got = train.candidates(planning.parse_releases(RELEASES))
     assert [(v.version, v.line) for v in got] == [("2.1.0", "feature/v2.0"), ("3.1.0", "feature/v3.0")]
+
+
+def test_candidates_skip_bad_line():
+    rel = planning.parse_releases("## Versions\n\n| version | line | state |\n| --- | --- | --- |\n"
+                                  "| 2.1.0 | | planned |\n| 2.2.0 | bad line;x | planned |\n"
+                                  "| 2.3.0 | feature/v2.0 | planned |\n")
+    assert [(v.version, v.line) for v in train.candidates(rel)] == [("2.3.0", "feature/v2.0")]
 
 
 def test_short_for():
@@ -432,7 +450,7 @@ def test_board_entry_counts(tmp_path):
                                       "train-2026-11-17": {"state": "approved"}}}}
     got = train.board_entry(p, tickets, releases, rows, strands, marker, utc(2026, 11, 30))
     assert got == {"project": "alpha", "date": "2026-12-01", "skipped": False, "in": 2, "working": 2,
-                   "waiting": 4, "on_test": ["3.0.0 (feature/v3.0)"], "question": "train-2026-12-01"}
+                   "waiting": 3, "on_test": ["3.0.0 (feature/v3.0)"], "question": "train-2026-12-01"}
 
 
 def test_board_entry_marks_skipped_date(tmp_path):
@@ -455,3 +473,36 @@ def test_board_entry_on_test_filters_versions(tmp_path):
     from sf_status import planning
     got = train.board_entry(p, tickets, planning.load_releases(p), rows, strands, {}, utc(2026, 11, 30))
     assert got["on_test"] == ["3.0.0 (feature/v3.0)"]
+
+
+def test_insert_row_uses_table_with_short_column():
+    text = ("| wave | when |\n| --- | --- |\n| w1 | now |\n\n## Rows\n\nSome text.\n\n"
+            "| short | strand | approval |\n| --- | --- | --- |\n| a | A | no |\n\nafter\n")
+    got = train._insert_row(text, "| zug-1 | R | yes |")
+    lines = got.splitlines()
+    assert lines[lines.index("| a | A | no |") + 1] == "| zug-1 | R | yes |"
+    assert "| zug-1 | R | yes |" not in lines[:4]
+    assert got.count("zug-1") == 1
+
+
+def test_insert_row_without_wave_table_appends_new_table():
+    got = train._insert_row("| wave | when |\n| --- | --- |\n| w1 | now |\n", "| zug-1 |")
+    assert got.startswith("| wave | when |\n| --- | --- |\n| w1 | now |\n")
+    assert "| short |" in got and got.rstrip().endswith("| zug-1 |")
+
+
+def test_default_columns_have_base():
+    assert "base" in train.DEFAULT_COLUMNS
+    row = train.wave_row(train.DEFAULT_COLUMNS, {"short": "zug-1", "base": "feature/v2.0", "approval": "yes"})
+    assert wave_plan.parse_wave_plan("| " + " | ".join(train.DEFAULT_COLUMNS) + " |\n" + row + "\n")[0].base == "feature/v2.0"
+
+
+def test_invalid_line_waits(w):
+    (w.repo / "planning" / "RELEASES.md").write_text(RELEASES.replace("| 2.1.0 | feature/v2.0 |", "| 2.1.0 |  |"))
+    git(w.repo, "-c", "user.name=t", "-c", "user.email=t@example.invalid", "commit", "-am", "rel")
+    w.ask(cands=("2.1.0",))
+    w.answer("ja, 2.1.0")
+    w.run()
+    assert "zug-2-1-0" not in [r.short for r in w.rows()]
+    assert w.marker()["questions"]["train-2026-12-01"]["state"] == "open"
+    assert len(w.notices()) == 1
