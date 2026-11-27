@@ -1,0 +1,3 @@
+# False positives of the ipv4-address rule: "2.1.0.1" is an invalid version string in the train answer tests, not an address.
+fd199bd2cf4fa893599e5aa061a129c3bd0ae753:scripts/sf_status/train.py:ipv4-address:110
+fd199bd2cf4fa893599e5aa061a129c3bd0ae753:tests/sf_status/test_train.py:ipv4-address:121
