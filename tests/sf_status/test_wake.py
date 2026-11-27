@@ -213,6 +213,7 @@ def test_train_trigger_raised_and_adopted_once(cfg, state, proj):
 
 def test_train_missed_and_skipped_notices_once(cfg, state, proj):
     p = train_proj(proj)
+    run(cfg, [p], state, datetime(2026, 11, 24, 17, 30, tzinfo=timezone.utc))  # entry exists from here on
     late = TRAIN_DUE + timedelta(days=1, hours=5)
     assert not [t for t in run(cfg, [p], state, late) if t.startswith("train:")]
     run(cfg, [p], state, late + timedelta(minutes=5))
@@ -243,3 +244,44 @@ def test_project_without_supervisor_ignored_by_wake(cfg, state, proj):
 def test_bad_train_settings_do_not_crash_wake(cfg, state, proj):
     p = train_proj(proj, train_day="xyz", train_tz="Nowhere/Land")
     assert not [t for t in run(cfg, [p], state, TRAIN_DUE) if t.startswith("train:")]
+
+
+def test_first_sighting_missed_is_silent_later_missed_notifies(cfg, state, proj):
+    p = train_proj(proj)
+    late = TRAIN_DUE + timedelta(days=2)
+    run(cfg, [p], state, late)
+    assert train_marker(state)["alpha"]["dates"] == {"2026-12-01": "missed"}
+    assert not [e for e in events.read(state, "alpha")[0] if e["kind"] == "notice"]
+    run(cfg, [p], state, late + timedelta(days=7))
+    notes = [e for e in events.read(state, "alpha")[0] if e["kind"] == "notice"]
+    assert [e["title"] for e in notes] == ["Train 2026-12-08 missed"]
+
+
+def ask_train(state, qid, st):
+    events.append(state, "alpha", {"kind": "question", "strand": "supervisor", "id": qid, "question": "q",
+                                   "background": "b", "recommendation": "r"}, T0)
+    events.append(state, "alpha", {"kind": "answer", "strand": "supervisor", "question_id": qid, "text": "x"}, T0)
+    marker = {"alpha": {"dates": {}, "questions": {qid: {"state": st}} if st else {}}}
+    (state / "markers").mkdir(exist_ok=True)
+    (state / "markers" / "train.json").write_text(json.dumps(marker))
+
+
+def test_wake_raises_answer_trigger_only_when_unclear(cfg, state, proj):
+    p = train_proj(proj)
+    ask_train(state, "train-2026-12-01", "unclear")
+    assert "answer:train-2026-12-01" in run(cfg, [p], state, T0)
+
+
+def test_wake_no_trigger_for_handled_train_answer(cfg, state, proj):
+    p = train_proj(proj)
+    for st in ("approved", "open", "skipped", None):
+        ask_train(state, "train-2026-12-01", st)
+        assert "answer:train-2026-12-01" not in run(cfg, [p], state, T0)
+        (state / "markers" / "wake.json").unlink(missing_ok=True)
+        (state / "events" / "alpha.jsonl").unlink()
+
+
+def test_answers_of_projects_without_train_unchanged(cfg, state, proj):
+    events.append(state, "alpha", {"kind": "answer", "strand": "supervisor", "question_id": "train-2026-12-01",
+                                   "text": "x"}, T0)
+    assert "answer:train-2026-12-01" in run(cfg, [proj], state, T0)

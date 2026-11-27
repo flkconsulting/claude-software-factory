@@ -136,3 +136,44 @@ def test_project_without_train_no_marker(env):
     env.register()
     assert cli.main(["run"]) == 0
     assert not (env.state / "markers" / "train.json").exists()
+
+
+def test_full_cycle_due_question_answer_row_trigger(env, tmp_path, monkeypatch):
+    import subprocess
+    from datetime import datetime, timezone
+
+    folder = tmp_path / "work" / "alpha"
+    (folder / "planning").mkdir(parents=True)
+    (folder / "planning" / "wave-plan.md").write_text(
+        "| short | strand | approval | starts when | branch | base | migrations | may change |\n"
+        "| --- | --- | --- | --- | --- | --- | --- | --- |\n")
+    (folder / "planning" / "RELEASES.md").write_text(
+        "## Versions\n\n| version | line | state |\n| --- | --- | --- |\n| 2.1.0 | feature/v2.0 | planned |\n")
+    for args in (["init", "-b", "main"], ["add", "."],
+                 ["-c", "user.name=t", "-c", "user.email=t@example.invalid", "commit", "-m", "init"]):
+        subprocess.run(["git", "-C", str(folder), *args], check=True, capture_output=True)
+    env.state.mkdir(parents=True)
+    (env.state / "projects.json").write_text(json.dumps({"projects": [Project(
+        name="alpha", title="Alpha", folder=str(folder), supervisor=True, approval_quote="ok",
+        train=True).__dict__]}))
+    env.configure(enabled=True, supervisor=True)
+
+    clock = {"now": datetime(2026, 12, 1, 17, 30, tzinfo=timezone.utc)}
+    monkeypatch.setattr(effects, "now", lambda: clock["now"])
+    assert cli.main(["run"]) == 0
+    data = json.loads((env.state / "supervisor" / "triggers.json").read_text())
+    assert "train:2026-12-01" in [i["id"] for i in data["open"]]
+
+    monkeypatch.setenv("SF_SOURCE", "supervisor")
+    assert cli.main(["train", "question", "--project", "alpha", "--date", "2026-12-01", "--background", "bg",
+                     "--recommendation", "2.1.0", "Release 2.1.0 on the test environment?"]) == 0
+    monkeypatch.delenv("SF_SOURCE")
+    assert cli.main(["answer", "--project", "alpha", "--id", "train-2026-12-01", "ja, 2.1.0"]) == 0
+
+    clock["now"] = datetime(2026, 12, 1, 17, 40, tzinfo=timezone.utc)
+    assert cli.main(["run"]) == 0
+    data = json.loads((env.state / "supervisor" / "triggers.json").read_text())
+    ids = [i["id"] for i in data["open"]]
+    assert "approved:zug-2-1-0" in ids and "answer:train-2026-12-01" not in ids
+    assert 'yes - "ja, 2.1.0"' in (folder / "planning" / "wave-plan.md").read_text()
+    assert env.spawned

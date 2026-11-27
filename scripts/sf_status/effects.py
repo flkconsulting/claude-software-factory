@@ -37,6 +37,24 @@ def git_cherry(folder: Path, line: str, branch: str) -> list[str] | None:
     return [ln[2:].strip() for ln in r.stdout.splitlines() if ln.startswith("+ ")]
 
 
+def git_path_clean(folder: Path, path: str) -> bool | None:
+    """True if `git status --porcelain -- path` is empty (no change, nothing untracked); None if git fails."""
+    r = _run(["git", "-C", str(folder), "status", "--porcelain", "--", path], timeout=30)
+    if not r or r.returncode != 0:
+        return None
+    return r.stdout.strip() == ""
+
+
+def git_commit_path(folder: Path, path: str, message: str) -> bool:
+    """Commit only `path` locally (never pushes); False if adding or committing fails."""
+    who = ["-c", "user.name=sf-status", "-c", "user.email=sf-status@localhost"]
+    r = _run(["git", "-C", str(folder), "add", "--", path], timeout=30)
+    if not r or r.returncode != 0:
+        return False
+    r = _run(["git", "-C", str(folder), *who, "commit", "-m", message, "--", path], timeout=60)
+    return bool(r and r.returncode == 0)
+
+
 def git_remote_head(folder: Path, branch: str) -> str | None:
     """Commit id of a branch on the remote origin; None if unreadable or missing."""
     r = _run(["git", "-C", str(folder), "ls-remote", "--heads", "origin", f"refs/heads/{branch}"],

@@ -59,3 +59,35 @@ def test_git_cherry_with_real_repo(tmp_path):
 def test_git_cherry_timeout_or_missing_git_is_none(tmp_path, monkeypatch):
     monkeypatch.setattr(effects, "_run", lambda *a, **k: None)
     assert effects.git_cherry(tmp_path, "main", "release/1.0.0") is None
+
+
+def test_git_path_clean_and_commit_path(tmp_path):
+    work = tmp_path / "work"
+    work.mkdir()
+    _git("init", "-b", "main", cwd=work)
+    _commit(work, "a.txt")
+    _commit(work, "b.txt")
+    assert effects.git_path_clean(work, "a.txt") is True
+    (work / "a.txt").write_text("changed\n")
+    (work / "b.txt").write_text("changed too\n")
+    assert effects.git_path_clean(work, "a.txt") is False
+
+    def count():
+        return int(subprocess.run(["git", "-C", str(work), "rev-list", "--count", "HEAD"],
+                                  capture_output=True, text=True).stdout)
+
+    before = count()
+    assert effects.git_commit_path(work, "a.txt", "chore: a") is True
+    assert count() == before + 1
+    names = subprocess.run(["git", "-C", str(work), "show", "--name-only", "--format=", "HEAD"],
+                           capture_output=True, text=True).stdout.split()
+    assert names == ["a.txt"]
+    assert effects.git_path_clean(work, "a.txt") is True and effects.git_path_clean(work, "b.txt") is False
+    author = subprocess.run(["git", "-C", str(work), "log", "-1", "--format=%an <%ae>"],
+                            capture_output=True, text=True).stdout.strip()
+    assert author == "sf-status <sf-status@localhost>"
+    assert effects.git_commit_path(work, "nope.txt", "x") is False
+
+
+def test_git_path_clean_not_a_repo_is_none(tmp_path):
+    assert effects.git_path_clean(tmp_path / "missing", "a.txt") is None

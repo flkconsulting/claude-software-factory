@@ -6,7 +6,7 @@ import sys
 import time
 from pathlib import Path
 
-from . import collect, effects, events
+from . import collect, effects, events, train
 from .config import ServerConfig
 from .projects import Project, project_for_path
 
@@ -51,6 +51,10 @@ def launch(cfg: ServerConfig, project: Project, short: str, model: str, worktree
     running = collect.running_strand_sessions([project], project.name, Path(cfg.state_dir), live)
     if session in [name for name, _ in live]:
         return _fail(f"tmux session {session} already exists")
+    if short.startswith(train.TRAIN_PREFIX):
+        others = [s for s in train.open_train_strands(project, Path(cfg.state_dir), live) if s != short]
+        if others:
+            return _fail(f"a train strand is already running ({others[0]})")
     if len(running) >= cfg.max_strands:
         return _fail(f"project {project.name!r} already has {len(running)} running strands (max_strands {cfg.max_strands})")
     prompt = f"Read {start_file} and carry out the task completely."

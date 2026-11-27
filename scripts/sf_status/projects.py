@@ -15,7 +15,7 @@ RESERVED_NAMES = ("rows", "seen")
 SYSTEM_STRAND = "server"  # strand id used for registry events
 TRAIN_DAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
 TRAIN_KEYS = ("train", "train_day", "train_time", "train_tz", "train_skip")
-TIME_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
+TIME_RE = re.compile(r"([01][0-9]|2[0-3]):([0-5][0-9])", re.ASCII)  # use fullmatch
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
@@ -140,7 +140,7 @@ def has_gitleaks_pre_push(folder: Path) -> bool:
 def check_train(p: Project) -> None:
     if p.train_day not in TRAIN_DAYS:
         raise ProjectError(f"train day must be one of {', '.join(TRAIN_DAYS)}")
-    if not TIME_RE.match(p.train_time):
+    if not TIME_RE.fullmatch(p.train_time):
         raise ProjectError("train time must be HH:MM from 00:00 to 23:59")
     try:
         ZoneInfo(p.train_tz)

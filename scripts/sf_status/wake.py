@@ -98,19 +98,25 @@ def collect_triggers(cfg: ServerConfig, projects: list[Project], state_dir: Path
             if kind == "report" and e.get("state") in DEBOUNCED_STATES and events.valid_id(strand):
                 add(f"{e['state']}:{strand}", True)
             elif kind == "answer" and events.valid_id(e.get("question_id")):
-                add(f"answer:{e['question_id']}", False)
+                qid = e["question_id"]
+                if project.train and train.QID_RE.match(qid):  # train answers wake only when unclear
+                    state = (train_marks.get(project.name, {}).get("questions", {}).get(qid) or {}).get("state")
+                    if state != "unclear":
+                        continue
+                add(f"answer:{qid}", False)
             elif kind == "local_result" and events.valid_id(e.get("request_id")):
                 add(f"local:{e['request_id']}", False)
             elif kind == "stall" and events.valid_id(strand):
                 add(f"stall:{strand}", True)
         due = train.check(project, train_marks, now)
         if due is not None:
+            first = project.name not in train_marks  # first sighting (train just switched on)
             entry = train_marks.setdefault(project.name, {})
             entry.setdefault("dates", {})[due.date] = due.kind
             entry.setdefault("questions", {})
             if due.kind == "due":
                 add(f"train:{due.date}", False)
-            else:
+            elif not (first and due.kind == "missed"):  # a first missed date is recorded silently
                 level = "info" if due.kind == "skipped" else "warning"
                 found.train_notices.append((project.name, level, f"Train {due.date} {due.kind}",
                                             f"The train cut-off of {due.date} was {due.kind}; no train question was asked."))

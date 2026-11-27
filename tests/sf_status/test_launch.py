@@ -345,3 +345,38 @@ def test_launch_requires_model(home):
 def test_deliver_unregistered_project_returns_1(home, capsys):
     assert cli.main(["deliver", "--project", "nope", "--strand", "a", "x"]) == 1
     assert "not registered" in capsys.readouterr().err
+
+
+TRAIN_PLAN = ("| short | strand | approval | starts when | branch | base | migrations | may change |\n"
+              "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+              '| zug-2-0-0 | Release train 2.0.0 | yes - "ja" | immediately | release/2.0.0 | | none | x |\n')
+
+
+def _train_setup(cfg, project, tmp_path, fake):
+    plan = Path(project.folder) / project.wave_plan
+    plan.parent.mkdir(parents=True, exist_ok=True)
+    plan.write_text(TRAIN_PLAN)
+    wt = tmp_path / "repo-zug-2-1-0"
+    wt.mkdir()
+    start_file(cfg, "zug-2-1-0")
+    fake.sessions = [("demo-zug-2-0-0", str(tmp_path / "repo-zug-2-0-0"))]
+    return wt
+
+
+def test_launch_refuses_second_train_strand(cfg, project, fake, tmp_path, capsys):
+    wt = _train_setup(cfg, project, tmp_path, fake)
+    assert launch.launch(cfg, project, "zug-2-1-0", "sonnet", wt, "t") == 1
+    assert fake.started == [] and "a train strand is already running" in capsys.readouterr().err
+
+
+def test_launch_allows_train_strand_after_done(cfg, project, fake, tmp_path):
+    wt = _train_setup(cfg, project, tmp_path, fake)
+    events.append(Path(cfg.state_dir), "demo", {"kind": "report", "strand": "zug-2-0-0", "state": "done", "text": "x"})
+    assert launch.launch(cfg, project, "zug-2-1-0", "sonnet", wt, "t") == 0
+    assert fake.started[0][0] == "demo-zug-2-1-0"
+
+
+def test_launch_of_other_strands_ignores_train_strand(cfg, project, worktree, fake, tmp_path):
+    _train_setup(cfg, project, tmp_path, fake)
+    start_file(cfg)
+    assert launch.launch(cfg, project, "alpha", "sonnet", worktree, "t") == 0

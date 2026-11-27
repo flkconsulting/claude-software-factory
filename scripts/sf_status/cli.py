@@ -10,7 +10,7 @@ from dataclasses import fields
 from pathlib import Path
 from typing import Callable
 
-from . import checks, collect, effects, events, launch, projects, render, supervisor, wake
+from . import checks, collect, effects, events, launch, planning, projects, render, supervisor, train, wake
 from .config import DEFAULT_STATE_DIR, ServerConfig, load_server_config
 from .planning import load_releases, load_tickets
 
@@ -477,6 +477,78 @@ def _one_line(text: str, limit: int = 300) -> str:
     return re.sub(r"[\x00-\x1f\x7f]+", " ", text).strip()[:limit]
 
 
+def _add_train(sub) -> None:
+    p = sub.add_parser("train", help="release train")
+    ts = p.add_subparsers(dest="train_command", required=True)
+    q = ts.add_parser("question", help="ask the train question (supervisor only); prints the question id")
+    q.add_argument("--project", required=True)
+    q.add_argument("--date", required=True, help="cut-off date, YYYY-MM-DD")
+    q.add_argument("--background", required=True)
+    q.add_argument("--recommendation", required=True)
+    q.add_argument("text", metavar="question")
+
+
+def _run_train(args) -> int:
+    if os.environ.get("SF_SOURCE") != "supervisor":
+        print("sf-status: the train question is asked by the supervisor only", file=sys.stderr)
+        return 2
+    if not projects.DATE_RE.fullmatch(args.date):
+        print("sf-status: --date must be YYYY-MM-DD", file=sys.stderr)
+        return 2
+    try:
+        datetime.strptime(args.date, "%Y-%m-%d")
+    except ValueError:
+        print("sf-status: --date is not a real date", file=sys.stderr)
+        return 2
+    cfg = _config()
+    if cfg is None:
+        return 1
+    project = _project(args.project, cfg.state_dir)
+    if project is None:
+        return 1
+    if not project.train:
+        print(f"sf-status: project {args.project!r} has no release train (sf-status project set --train on)",
+              file=sys.stderr)
+        return 1
+    rel = planning.load_releases(project)
+    cands = [v.version for v in train.candidates(rel)] if rel is not None else []
+    if not cands:
+        print("sf-status: no planned version in RELEASES.md; nothing to ask", file=sys.stderr)
+        return 1
+    missing = [v for v in cands if not train.names_version(args.text, v)]
+    if missing:
+        print(f"sf-status: the question must name every candidate version (missing: {', '.join(missing)})",
+              file=sys.stderr)
+        return 2
+    try:
+        history, _ = events.read(cfg.state_dir, args.project)
+    except ValueError as e:
+        print(f"sf-status: {e}", file=sys.stderr)
+        return 2
+    marker = train.load_marker(cfg.state_dir)
+    entry = marker.setdefault(args.project, {})
+    entry.setdefault("dates", {})
+    questions = entry.setdefault("questions", {})
+    taken = {e.get("id") for e in history if e.get("kind") == "question"} | set(questions)
+    qid, n = f"train-{args.date}", 1
+    while qid in taken:
+        n += 1
+        qid = f"train-{args.date}-{n}"
+    ev = {"kind": "question", "strand": "supervisor", "id": qid, "question": args.text,
+          "background": args.background, "recommendation": args.recommendation}
+    result = _emit(args, ev)
+    if isinstance(result, int):
+        return result
+    questions[qid] = {"state": "open", "candidates": cands}
+    try:
+        train.save_marker(cfg.state_dir, marker)
+    except OSError as e:
+        print(f"sf-status: question {qid} written but the train marker was not: {e}", file=sys.stderr)
+        return 1
+    print(qid)
+    return 0
+
+
 def _add_run(sub) -> None:
     p = sub.add_parser("run", help="one cron run: status files, wake triggers, start the supervisor")
     p.add_argument("--dry-run", action="store_true", help="collect and render as usual (this still writes stall/notice events and markers), but adopt no wake triggers and start no supervisor")
@@ -502,6 +574,11 @@ def _run_run(args) -> int:
         items = projects.load(state_dir)
         state = collect.collect(cfg, items, now.timestamp())
         render.write(state_dir, state, now)
+        if not args.dry_run:
+            try:
+                train.process_answers(cfg, items, state_dir, now)
+            except Exception as e:  # a failing train step must not stop the rest of the run
+                _log(state_dir, f"train answers failed: {type(e).__name__}: {_one_line(str(e))}")
         triggers = wake.collect_triggers(cfg, items, state_dir, now)
         if args.dry_run:
             _log(state_dir, f"dry run: would raise {len(triggers)} triggers: {', '.join(triggers) or 'none'}")
@@ -717,6 +794,7 @@ COMMANDS: dict[str, tuple[Callable, Callable[[argparse.Namespace], int]]] = {
     "backport": (_add_backport, _run_backport),
     "tickets": (_add_tickets, _run_tickets),
     "project": (_add_project, _run_project),
+    "train": (_add_train, _run_train),
     "run": (_add_run, _run_run),
     "wake": (_add_wake, _run_wake),
     "supervise": (_add_supervise, _run_supervise),

@@ -415,3 +415,61 @@ def test_tickets_no_file_prints_nothing(env, capsys):
     assert cli.main(["tickets"]) == 0
     assert cli.main(["tickets", "--project", "p"]) == 0
     assert capsys.readouterr().out == ""
+
+
+def _train_env(env, tmp_path, monkeypatch):
+    folder = tmp_path / "repo"
+    (folder / "planning").mkdir(parents=True, exist_ok=True)
+    (folder / "planning" / "RELEASES.md").write_text(
+        "## Versions\n\n| version | line | state |\n| --- | --- | --- |\n"
+        "| 2.1.0 | feature/v2.0 | planned |\n| 3.0.0 | feature/v3.0 | planned |\n")
+    old = projects.load(env)[0]
+    projects.remove(env, "p")
+    projects.add(env, projects.Project(name="p", title="P", folder=old.folder, supervisor=True,
+                                               approval_quote="ok"))
+    projects.update(env, "p", {"train": True})
+    monkeypatch.setenv("SF_SOURCE", "supervisor")
+
+
+def _tq(text="Release 2.1.0 or 3.0.0?", date="2026-12-01"):
+    return ["train", "question", "--project", "p", "--date", date, "--background", "bg",
+            "--recommendation", "2.1.0", text]
+
+
+def test_train_question_ids_and_marker(env, tmp_path, monkeypatch, capsys):
+    _train_env(env, tmp_path, monkeypatch)
+    assert cli.main(_tq()) == 0
+    assert capsys.readouterr().out.strip() == "train-2026-12-01"
+    assert cli.main(_tq()) == 0
+    assert capsys.readouterr().out.strip() == "train-2026-12-01-2"
+    assert cli.main(_tq(date="2026-12-08")) == 0
+    from sf_status import train
+    q = train.load_marker(env)["p"]["questions"]
+    assert q["train-2026-12-01"] == {"state": "open", "candidates": ["2.1.0", "3.0.0"]}
+    ev = [e for e in events.read(env, "p")[0] if e["kind"] == "question"][0]
+    assert ev["strand"] == "supervisor" and ev["id"] == "train-2026-12-01"
+
+
+def test_train_question_must_name_every_candidate(env, tmp_path, monkeypatch, capsys):
+    _train_env(env, tmp_path, monkeypatch)
+    assert cli.main(_tq("Release 2.1.0 now?")) == 2
+    assert "3.0.0" in capsys.readouterr().err
+    assert not [e for e in events.read(env, "p")[0] if e["kind"] == "question"]
+
+
+def test_train_question_needs_supervisor_source(env, tmp_path, monkeypatch):
+    _train_env(env, tmp_path, monkeypatch)
+    monkeypatch.delenv("SF_SOURCE")
+    assert cli.main(_tq()) == 2
+    assert not [e for e in events.read(env, "p")[0] if e["kind"] == "question"]
+
+
+def test_train_question_refuses_bad_date_train_off_no_candidates(env, tmp_path, monkeypatch):
+    _train_env(env, tmp_path, monkeypatch)
+    assert cli.main(_tq(date="2026-13-45")) == 2
+    projects.update(env, "p", {"train": False})
+    assert cli.main(_tq()) == 1
+    projects.update(env, "p", {"train": True})
+    (tmp_path / "repo" / "planning" / "RELEASES.md").write_text(
+        "## Versions\n\n| version | line | state |\n| - | - | - |\n")
+    assert cli.main(_tq()) == 1
