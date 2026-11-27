@@ -1,0 +1,157 @@
+import json
+from datetime import datetime, timezone
+
+import pytest
+
+from sf_status import checks, events
+from sf_status.planning import Delivery, Releases, Ticket, TicketTable, Version
+
+NOW = datetime(2026, 11, 27, 12, 0, tzinfo=timezone.utc)
+
+
+def T(**kw):
+    base = dict(nr="T-1", since="2026-11-01", kind="bug", rank="normal", effort="S", state="new",
+                version="", source="customer A", summary="x")
+    base.update(kw)
+    return Ticket(**base)
+
+
+def table(*rows, missing=()):
+    return TicketTable(list(rows), list(missing))
+
+
+def rel(*versions, deliveries=(), missing=()):
+    return Releases(list(versions), list(deliveries), list(missing))
+
+
+V = Version("2.1.0", "release/2.1", "released")
+
+
+def codes(findings):
+    return [f.code for f in findings]
+
+
+def run(t, releases=rel(V), hours=24):
+    return checks.ticket_findings(table(*t) if isinstance(t, list) else table(t), releases, NOW, hours)
+
+
+@pytest.mark.parametrize("rows,code", [
+    ([T(), T(nr="T-1")], "number-duplicate"),
+    ([T(nr="3")], "number-invalid"),
+    ([T(kind="task")], "kind-unknown"),
+    ([T(kind="bug", rank="low")], "rank-unknown"),
+    ([T(effort="XL")], "effort-unknown"),
+    ([T(state="open")], "state-unknown"),
+    ([T(since="yesterday")], "since-invalid"),
+    ([T(since="2026-13-45")], "since-invalid"),
+    ([T(state="planned")], "version-missing"),
+    ([T(state="in-train")], "version-missing"),
+    ([T(state="planned", version="2.1.0-test.1")], "version-test-suffix"),
+    ([T(state="planned", version="9.9.9")], "version-unknown"),
+])
+def test_ticket_findings_each_rule(rows, code):
+    assert code in codes(run(rows))
+
+
+def test_feature_with_low_rank_is_fine():
+    assert run(T(kind="feature", rank="low")) == []
+
+
+def test_valid_table_has_no_findings():
+    rows = [T(), T(nr="T-2", state="planned", version="2.1.0", effort=""),
+            T(nr="T-3", state="deferred", rank="critical"), T(nr="T-4", state="rejected", rank="critical"),
+            T(nr="T-5", kind="feature", rank="low", state="shipped", version="2.1.0")]
+    assert run(rows) == []
+
+
+def test_critical_unplanned_threshold():
+    # since counts from 00:00 UTC of the date; NOW is 12:00
+    t = T(rank="critical", since="2026-11-27")
+    assert "critical-unplanned" not in codes(run(t, hours=24))
+    assert "critical-unplanned" not in codes(run(t, hours=13))
+    assert "critical-unplanned" in codes(run(t, hours=12))
+    assert "critical-unplanned" in codes(run(t, hours=1))
+    day_before = T(rank="critical", since="2026-11-26")
+    assert "critical-unplanned" not in codes(run(day_before, hours=37))
+    assert "critical-unplanned" in codes(run(day_before, hours=36))
+    assert "critical-unplanned" in codes(run(T(rank="critical", since="2026-11-26", state="assessed"), hours=24))
+    assert "critical-unplanned" not in codes(run(T(rank="critical", since="2026-11-01", state="planned",
+                                                    version="2.1.0")))
+    assert "critical-unplanned" not in codes(run(T(kind="feature", rank="high", since="2026-01-01")))
+    f = [x for x in run(T(rank="critical", since="2026-11-01")) if x.code == "critical-unplanned"]
+    assert f and f[0].level == "warning"
+
+
+def test_levels_are_info_except_critical():
+    assert {f.level for f in run(T(kind="task"))} == {"info"}
+
+
+def test_version_unknown_skipped_without_releases():
+    rows = [T(state="planned", version="9.9.9")]
+    assert checks.ticket_findings(table(*rows), None, NOW, 24) == []
+
+
+def test_missing_required_column_one_finding():
+    rows = [T(since=""), T(nr="T-2", since="")]
+    out = checks.ticket_findings(table(*rows, missing=["since"]), rel(V), NOW, 24)
+    assert codes(out) == ["column-missing-since"]
+    assert out[0].key == "tickets-file/column-missing-since"
+
+
+def test_key_and_title_shape():
+    out = run([T(), T(nr="T-1")])
+    assert out[0].key == "T-1/number-duplicate" and out[0].title == "ticket T-1: number-duplicate"
+    bad = run(T(nr="x y"))
+    assert bad[0].key == "row1/number-invalid"
+
+
+def test_release_findings_each_rule():
+    r = rel(Version("1.0.0", "", "planned"), Version("1.0.0", "release/1.0", "live"),
+            Version("2.0.0", "release/2.0", "testing"),
+            deliveries=[Delivery("customer A", "7.0.0"), Delivery("customer B", "2.0.0"),
+                        Delivery("customer C", "2.1.0")])
+    out = checks.release_findings(r)
+    assert set(codes(out)) == {"line-missing", "state-unknown", "version-duplicate",
+                               "delivery-version-unknown", "delivery-version-unreleased"}
+    assert all(f.level == "info" for f in out)
+    assert {f.title for f in out if f.code == "line-missing"} == {"release 1.0.0: line-missing"}
+
+
+def test_release_missing_column():
+    out = checks.release_findings(rel(Version("1.0.0", "", "planned"), missing=["versions.line"]))
+    assert codes(out) == ["column-missing-versions.line"]
+    assert out[0].key == "releases-file/column-missing-versions.line"
+
+
+def test_findings_carry_no_free_text():
+    t = T(summary="<script>x</script>", source="Kunde A", kind="task", state="open", effort="XL")
+    r = rel(Version("<b>x</b>", "", "live", notes="Kunde A"), deliveries=[Delivery("Kunde A", "<i>")])
+    out = checks.ticket_findings(table(t), rel(V), NOW, 24) + checks.release_findings(r)
+    assert out
+    for f in out:
+        for s in (f.title, f.text, f.key):
+            assert "script" not in s and "Kunde" not in s and "<" not in s
+
+
+def test_emit_once_marker_and_notices(tmp_path):
+    f = checks.Finding("T-1/kind-unknown", "kind-unknown", "info", "ticket T-1: kind-unknown", "x")
+    checks.emit_once(tmp_path, {"alpha": []}, NOW)
+    assert not (tmp_path / "markers" / "tickets.json").exists()
+    checks.emit_once(tmp_path, {"alpha": [f]}, NOW)
+    checks.emit_once(tmp_path, {"alpha": [f]}, NOW)
+    evs = events.read(tmp_path, "alpha")[0]
+    assert [e["title"] for e in evs] == ["ticket T-1: kind-unknown"]
+    marker = tmp_path / "markers" / "tickets.json"
+    assert json.loads(marker.read_text())["noticed"] == ["alpha/T-1/kind-unknown"]
+    checks.emit_once(tmp_path, {"alpha": []}, NOW)
+    assert json.loads(marker.read_text())["noticed"] == []
+    checks.emit_once(tmp_path, {"alpha": [f]}, NOW)
+    assert len(events.read(tmp_path, "alpha")[0]) == 2
+
+
+def test_emit_once_keeps_prefixes(tmp_path):
+    marker = tmp_path / "markers" / "tickets.json"
+    marker.parent.mkdir(parents=True)
+    marker.write_text(json.dumps({"noticed": ["alpha/T-1/backport-missing:abc", "alpha/T-2/kind-unknown"]}))
+    checks.emit_once(tmp_path, {}, NOW, keep_prefixes=("alpha/T-1/backport-missing:",))
+    assert json.loads(marker.read_text())["noticed"] == ["alpha/T-1/backport-missing:abc"]

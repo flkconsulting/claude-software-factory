@@ -402,3 +402,59 @@ def test_dismissed_notice_hidden_log_untouched(cfg, state, projects, fake):
     s = collect.collect(cfg, projects, NOW + 2)
     assert _visible_titles(s) == ["keep"]
     assert len(of_kind(state, "notice")) == 2
+
+
+BROKEN = ("| nr | since | kind | rank | effort | state | version | source | summary |\n"
+          "| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n"
+          "| T-1 | 2026-01-01 | bug | normal | S | new | | customer A | one |\n"
+          "| T-1 | 2026-01-01 | bug | normal | S | new | | customer A | two |\n")
+FIXED = BROKEN.rsplit("| T-1", 1)[0]
+
+
+def _tickets_file(projects, text):
+    from pathlib import Path
+    d = Path(projects[0].folder) / "planning"
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "TICKETS.md").write_text(text, encoding="utf-8")
+
+
+def _ticket_notices(state):
+    return [n for n in of_kind(state, "notice") if n["title"].startswith("ticket ")]
+
+
+def test_ticket_notice_once(cfg, state, projects, fake):
+    _tickets_file(projects, BROKEN)
+    collect.collect(cfg, projects, NOW)
+    collect.collect(cfg, projects, NOW + 60)
+    notes = _ticket_notices(state)
+    assert [n["title"] for n in notes] == ["ticket T-1: number-duplicate"]
+    assert notes[0]["level"] == "info" and notes[0]["strand"] == "server"
+    marker = state / "markers" / "tickets.json"
+    assert json.loads(marker.read_text())["noticed"] == ["alpha/T-1/number-duplicate"]
+    _tickets_file(projects, FIXED)
+    collect.collect(cfg, projects, NOW + 120)
+    assert json.loads(marker.read_text())["noticed"] == []
+    _tickets_file(projects, BROKEN)
+    collect.collect(cfg, projects, NOW + 180)
+    assert len(_ticket_notices(state)) == 2
+
+
+def test_no_ticket_files_no_marker_no_event(cfg, state, projects, fake):
+    collect.collect(cfg, projects, NOW)
+    assert not (state / "markers" / "tickets.json").exists()
+    assert of_kind(state, "notice") == []
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[2] / "templates" / "planning"
+    d = Path(projects[0].folder) / "planning"
+    d.mkdir(parents=True)
+    for name in ("TICKETS.md", "RELEASES.md"):
+        (d / name).write_text((root / name).read_text(encoding="utf-8"), encoding="utf-8")
+    collect.collect(cfg, projects, NOW + 60)
+    assert not (state / "markers" / "tickets.json").exists()
+    assert of_kind(state, "notice") == []
+
+
+def test_ticket_checks_without_train(cfg, state, projects, fake):
+    _tickets_file(projects, BROKEN)
+    collect.collect(cfg, projects, NOW)
+    assert len(_ticket_notices(state)) == 1

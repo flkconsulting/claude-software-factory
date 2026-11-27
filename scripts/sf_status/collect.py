@@ -9,8 +9,9 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import effects, events, stall, usage as usage_mod
+from . import checks, effects, events, stall, usage as usage_mod
 from .config import ServerConfig
+from .planning import load_releases, load_tickets
 from .projects import SYSTEM_STRAND, Project, project_for_path
 
 REPORT_STATES = {"DONE": "done", "BLOCKED": "blocked"}
@@ -330,6 +331,15 @@ def collect(cfg: ServerConfig, projects: list[Project], now: float,
                 kept.add(key)
     if kept != noticed:
         _save_json(local_path, {"noticed": sorted(kept)})
+
+    # findings on planning/TICKETS.md and planning/RELEASES.md, one notice per ticket and finding
+    found: dict[str, list[checks.Finding]] = {}
+    for p in projects:
+        tickets, releases = load_tickets(p), load_releases(p)
+        found[p.name] = (
+            (checks.ticket_findings(tickets, releases, when, cfg.ticket_critical_hours) if tickets is not None else [])
+            + (checks.release_findings(releases) if releases is not None else []))
+    checks.emit_once(state_dir, found, when)
 
     # build the view from the events as they are now
     all_events: list[dict] = []

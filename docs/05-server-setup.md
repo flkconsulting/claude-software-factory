@@ -159,6 +159,7 @@ The `server` section of `~/.claude/software-factory.json` (defaults and validati
 | `safety_pass_hours` | `3` | Interval of the periodic `safety` trigger that wakes the supervisor even without other news. |
 | `retry_limit` | `3` | Supervisor runs per trigger before it is parked and a notice appears. |
 | `local_notice_hours` | `8` | Hours without a result after which an open local-step request raises one warning. |
+| `ticket_critical_hours` | `24` | Hours after which a critical bug in `planning/TICKETS.md` that is still `new` or `assessed` raises one warning (counted from 00:00 UTC of `since`). |
 | `usage_report` | `true` | Include the usage and cost summary (from the session transcripts) on the status board. |
 | `auto_compact_window` | `200000` | Value of `CLAUDE_CODE_AUTO_COMPACT_WINDOW` for strands started by `launch`. |
 | `state_dir` | `~/.claude/software-factory/server` | State folder (`<state-dir>` in this guide); an absolute path or one starting with `~/`. |
