@@ -169,3 +169,14 @@ def test_open_local_ignores_malformed_result(state):
     evs, _ = events.read(state, "p")
     assert list(events.open_local(evs)) == ["a-l1"]
     assert events.open_questions(evs) == {}
+
+
+def test_dismiss_event_validated(state):
+    ok = {"kind": "dismiss", "strand": "a", "notice_time": "2026-11-22T10:00:00Z", "notice_title": "t"}
+    assert events.append(state, "p", ok)["kind"] == "dismiss"
+    with pytest.raises(ValueError):
+        events.append(state, "p", {"kind": "dismiss", "strand": "a", "notice_time": "x"})
+    with pytest.raises(ValueError):
+        events.append(state, "p", {**ok, "notice_title": ""})
+    with pytest.raises(ValueError):
+        events.append(state, "p", {**ok, "extra": "x"})

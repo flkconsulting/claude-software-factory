@@ -193,6 +193,16 @@ Strands and the supervisor ask questions only when they are really unsure. Open 
 3. With the supervisor on (`server.supervisor` is `true`), the answer reaches the strand with the next supervisor run. With the supervisor off (the default), nobody passes it on: deliver it yourself with `sf-status deliver --project <name> --strand <short> "<text>"`.
 4. An unknown or already answered id is refused with a message; nothing is recorded twice.
 
+## Dismissing notices
+
+Notices stay on the board for 7 days. Stall, missing-session and local-step notices disappear by themselves once the strand finished or the request has a result; others, for example a supervisor warning that no longer applies, you dismiss yourself. Each notice on the board carries the ready-to-copy command.
+
+- One notice: `sf-status dismiss --project <name> --time <time> [--title "<title>"]`. `<time>` is the notice's time as shown on the board. If several notices share that time, the command refuses and lists their titles; add `--title`.
+- All shown notices of one strand: `sf-status dismiss --project <name> --strand <strand>`.
+- All shown notices of the project: `sf-status dismiss --project <name> --all`.
+
+The command prints the time and title of every dismissed notice and exits non-zero when nothing matched. It appends a `dismiss` event; the event file stays append-only and the notice itself is never deleted. The board drops it with the next cron run.
+
 ## Local steps
 
 Some steps cannot run on the server, for example building and installing a VS Code extension. A strand announces such a step, a chat session on your laptop runs it and reports the result back. The server never sends command text: the request carries only the step name, and the local session runs only what the project's `AGENTS.md` lists for that step.

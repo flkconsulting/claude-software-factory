@@ -35,6 +35,21 @@ def test_answer_line_present():
     assert "Way A" in md and "Because." in md
 
 
+def test_dismiss_line_present_in_both_formats():
+    cmd = 'sf-status dismiss --project alpha --time 2026-11-22T10:00:00Z --title Careful'
+    assert cmd in render.render_markdown(make_state(), NOW)
+    assert cmd in render.render_html(make_state(), NOW)
+
+
+def test_dismiss_line_quotes_title_and_skips_invalid_project():
+    s = make_state()
+    s.notices[0]["title"] = "it's $(x)"
+    md = render.render_markdown(s, NOW)
+    assert "--title 'it'\"'\"'s $(x)'" in md
+    s.notices[0]["project"] = "Bad Project"
+    assert "sf-status dismiss" not in render.render_markdown(s, NOW)
+
+
 def test_pipes_and_newlines_escaped_in_table():
     s = make_state()
     s.strands["alpha/s1"].text = "a|b\nc\r\nd"

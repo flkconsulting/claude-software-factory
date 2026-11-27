@@ -94,6 +94,10 @@ def _needs_you(state: State) -> list:
         b.append(("p", "None."))
     for n in ns:
         b.append(("li", f"[{_line(_get(n, 'level'), 20)}] {_line(_get(n, 'title'))}: {_line(_get(n, 'text'))}"))
+        raw_project, raw_time, raw_title = n.get("project"), n.get("time"), n.get("title")
+        if events.valid_id(raw_project) and isinstance(raw_time, str) and raw_time and isinstance(raw_title, str) and raw_title:
+            b.append(("code", f"sf-status dismiss --project {shlex.quote(raw_project)} "
+                              f"--time {shlex.quote(raw_time)} --title {shlex.quote(raw_title)}"))
     return b
 
 

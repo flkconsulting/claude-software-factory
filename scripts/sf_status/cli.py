@@ -215,6 +215,61 @@ def _run_notice(args) -> int:
     return _finish(_emit(args, ev))
 
 
+def _add_dismiss(sub) -> None:
+    p = sub.add_parser("dismiss", help="dismiss notices on the board (the event file keeps them)")
+    p.add_argument("--project", required=True)
+    g = p.add_mutually_exclusive_group(required=True)
+    g.add_argument("--time", help="time of the notice (ISO, as shown on the board)")
+    g.add_argument("--strand", help="dismiss all shown notices of this strand")
+    g.add_argument("--all", action="store_true", help="dismiss all shown notices of the project")
+    p.add_argument("--title", help="with --time: title, to tell notices of the same time apart")
+
+
+def _run_dismiss(args) -> int:
+    if args.title is not None and args.time is None:
+        print("sf-status: --title only goes with --time", file=sys.stderr)
+        return 2
+    cfg = _config()
+    if cfg is None:
+        return 1
+    if not _registered(cfg.state_dir, args.project):
+        return 1
+    try:
+        history, _ = events.read(cfg.state_dir, args.project)
+    except ValueError as e:
+        print(f"sf-status: {e}", file=sys.stderr)
+        return 2
+    cutoff = collect.cutoff_iso(datetime.now(timezone.utc).timestamp())
+    shown = collect.shown_notices(collect._sorted(history), cutoff)
+    if args.time is not None:
+        hits = [n for n in shown if n.get("time") == args.time
+                and (args.title is None or n.get("title") == args.title)]
+        if not hits:
+            print(f"sf-status: no shown notice at {args.time!r}"
+                  + (f" with title {args.title!r}" if args.title else "") + f" in project {args.project!r}",
+                  file=sys.stderr)
+            return 1
+        if len(hits) > 1:
+            print(f"sf-status: {len(hits)} notices at {args.time!r}; add --title to pick one:", file=sys.stderr)
+            for n in hits:
+                print(f"  {n.get('title')}", file=sys.stderr)
+            return 2
+    elif args.strand is not None:
+        hits = [n for n in shown if n.get("strand") == args.strand]
+    else:
+        hits = list(shown)
+    if not hits:
+        print(f"sf-status: no shown notice to dismiss in project {args.project!r}", file=sys.stderr)
+        return 1
+    for n in hits:
+        ev = {"kind": "dismiss", "strand": n["strand"], "notice_time": n["time"], "notice_title": n["title"]}
+        result = _emit(args, ev, reserved_check=False)
+        if isinstance(result, int):
+            return result
+        print(f"{n['time']} {n['title']}")
+    return 0
+
+
 # ---- project registry -------------------------------------------------------
 
 def _add_project(sub) -> None:
@@ -518,6 +573,7 @@ COMMANDS: dict[str, tuple[Callable, Callable[[argparse.Namespace], int]]] = {
     "answer": (_add_answer, _run_answer),
     "task": (_add_task, _run_task),
     "notice": (_add_notice, _run_notice),
+    "dismiss": (_add_dismiss, _run_dismiss),
     "project": (_add_project, _run_project),
     "run": (_add_run, _run_run),
     "wake": (_add_wake, _run_wake),

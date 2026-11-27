@@ -174,6 +174,24 @@ def _obsolete(notice: dict, finished: dict[tuple[str, str], str],
     return done_at is not None and done_at >= str(notice.get("time", ""))
 
 
+def cutoff_iso(now: float) -> str:
+    return _iso(now - NOTICE_DAYS * 86400)
+
+
+def shown_notices(all_events: list[dict], cutoff: str) -> list[dict]:
+    """Notices of the event list as the board shows them: not older than cutoff, not obsolete,
+    not dismissed. Events carry their project; the list may span several projects."""
+    answered = frozenset((str(e.get("project", "")), str(e.get("request_id", "")))
+                         for e in all_events if e.get("kind") == "local_result")
+    finished = {(str(e.get("project", "")), e["strand"]): str(e.get("time", "")) for e in all_events
+                if e.get("kind") == "report" and e.get("state") in FINISHED and isinstance(e.get("strand"), str)}
+    dismissed = {(str(e.get("project", "")), str(e.get("notice_time", "")), str(e.get("notice_title", "")))
+                 for e in all_events if e.get("kind") == "dismiss"}
+    return [e for e in all_events if e.get("kind") == "notice" and str(e.get("time", "")) >= cutoff
+            and (str(e.get("project", "")), str(e.get("time", "")), str(e.get("title", ""))) not in dismissed
+            and not _obsolete(e, finished, answered)][-MAX_NOTICES:]
+
+
 def strand_sessions(projects: list[Project], sessions: list[tuple[str, str]]) -> dict[str, tuple[str, str | None]]:
     """tmux session -> (project, strand name or None), by session name and pane path only.
 
@@ -315,11 +333,10 @@ def collect(cfg: ServerConfig, projects: list[Project], now: float,
     # build the view from the events as they are now
     all_events: list[dict] = []
     result = State()
-    cutoff = _iso(now - NOTICE_DAYS * 86400)
+    cutoff = cutoff_iso(now)
     open_q: list[dict] = []
     tasks: dict[tuple[str, str], dict] = {}
     local: list[dict] = []
-    answered: set[tuple[str, str]] = set()
     for p in projects:
         evs = load_events(p.name)
         all_events.extend(evs)
@@ -336,7 +353,6 @@ def collect(cfg: ServerConfig, projects: list[Project], now: float,
         for e in evs:
             if e.get("kind") == "local_result":
                 last_result[str(e.get("strand", ""))] = f"{e.get('state')}: {e.get('text', '')}"
-                answered.add((p.name, str(e.get("request_id", ""))))
         for rid, req in events.open_local(evs).items():
             local.append({"project": p.name, "id": rid, "strand": req.get("strand", ""),
                           "step": req.get("step", ""), "branch": req.get("branch", ""),
@@ -351,10 +367,7 @@ def collect(cfg: ServerConfig, projects: list[Project], now: float,
     result.questions = _sorted(open_q)
     result.tasks = _sorted(list(tasks.values()))
     result.local = sorted(local, key=lambda r: str(r["since"]))
-    finished = {(str(e.get("project", "")), e["strand"]): str(e.get("time", "")) for e in all_events
-                if e.get("kind") == "report" and e.get("state") in FINISHED and isinstance(e.get("strand"), str)}
-    result.notices = [e for e in all_events if e.get("kind") == "notice" and str(e.get("time", "")) >= cutoff
-                      and not _obsolete(e, finished, frozenset(answered))][-MAX_NOTICES:]
+    result.notices = shown_notices(all_events, cutoff)
     result.recent = all_events[-MAX_RECENT:]
     result.runs = _runs(state_dir)
     if cfg.usage_report:

@@ -389,3 +389,16 @@ def test_state_local_lists_open_with_last_result(cfg, state, projects, fake):
     assert e["id"] == "a-l2" and e["last_result"] == "failed: boom" and e["project"] == "alpha"
     assert e["strand"] == "a" and e["step"] == "build" and e["branch"] == "feature/x"
     assert e["commit"] == "abc1234" and e["since"]
+
+
+def test_dismissed_notice_hidden_log_untouched(cfg, state, projects, fake):
+    events.append(state, "alpha", {"kind": "notice", "strand": "a", "level": "warning",
+                                   "title": "keep", "text": "x"}, _at(NOW))
+    events.append(state, "alpha", {"kind": "notice", "strand": "a", "level": "warning",
+                                   "title": "gone", "text": "x"}, _at(NOW))
+    t = of_kind(state, "notice")[0]["time"]
+    events.append(state, "alpha", {"kind": "dismiss", "strand": "a", "notice_time": t,
+                                   "notice_title": "gone"}, _at(NOW + 1))
+    s = collect.collect(cfg, projects, NOW + 2)
+    assert _visible_titles(s) == ["keep"]
+    assert len(of_kind(state, "notice")) == 2

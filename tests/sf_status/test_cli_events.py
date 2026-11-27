@@ -221,3 +221,63 @@ def test_deliver_text_from_stdin(env, monkeypatch):
     assert seen["text"] == "Local step x ok: a; $(b) 'c'"
     assert cli.main(["deliver", "--project", "p", "--strand", "a", "plain"]) == 0
     assert seen["text"] == "plain"
+
+
+def _notice(strand, title, when, env):
+    from datetime import datetime
+    events.append(env, "p", {"kind": "notice", "strand": strand, "level": "warning", "title": title,
+                             "text": "x"}, datetime.fromisoformat(when))
+
+
+def _recent_time():
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+
+
+def _shown(env):
+    from sf_status import collect
+    from datetime import datetime, timezone
+    evs, _ = events.read(env, "p")
+    return collect.shown_notices(evs, collect.cutoff_iso(datetime.now(timezone.utc).timestamp()))
+
+
+def test_dismiss_by_time(env, capsys):
+    t = _recent_time()
+    _notice("a", "first", t, env)
+    assert cli.main(["dismiss", "--project", "p", "--time", t[:19] + "Z"]) == 0
+    assert capsys.readouterr().out.strip() == f"{t[:19]}Z first"
+    assert _shown(env) == []
+    got, _ = events.read(env, "p")
+    assert [e["kind"] for e in got] == ["project_added", "notice", "dismiss"]
+    assert cli.main(["dismiss", "--project", "p", "--time", t[:19] + "Z"]) == 1  # nothing left
+
+
+def test_dismiss_by_time_ambiguous_needs_title(env, capsys):
+    t = _recent_time()
+    _notice("a", "one", t, env)
+    _notice("b", "two", t, env)
+    z = t[:19] + "Z"
+    assert cli.main(["dismiss", "--project", "p", "--time", z]) == 2
+    assert "add --title" in capsys.readouterr().err
+    assert len(_shown(env)) == 2
+    assert cli.main(["dismiss", "--project", "p", "--time", z, "--title", "two"]) == 0
+    assert [n["title"] for n in _shown(env)] == ["one"]
+
+
+def test_dismiss_by_strand_and_all(env):
+    _notice("a", "one", _recent_time(), env)
+    _notice("a", "two", _recent_time(), env)
+    _notice("b", "three", _recent_time(), env)
+    assert cli.main(["dismiss", "--project", "p", "--strand", "a"]) == 0
+    assert [n["title"] for n in _shown(env)] == ["three"]
+    assert cli.main(["dismiss", "--project", "p", "--strand", "a"]) == 1
+    assert cli.main(["dismiss", "--project", "p", "--all"]) == 0
+    assert _shown(env) == []
+    assert cli.main(["dismiss", "--project", "p", "--all"]) == 1
+
+
+def test_dismiss_nothing_matched_and_bad_args(env, capsys):
+    assert cli.main(["dismiss", "--project", "p", "--time", "2020-01-01T00:00:00Z"]) == 1
+    assert cli.main(["dismiss", "--project", "p", "--all", "--strand", "a"]) == 2
+    assert cli.main(["dismiss", "--project", "p"]) == 2
+    assert cli.main(["dismiss", "--project", "p", "--all", "--title", "t"]) == 2
