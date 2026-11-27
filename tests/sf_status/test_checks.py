@@ -115,6 +115,7 @@ def test_release_findings_each_rule():
                                "delivery-version-unknown", "delivery-version-unreleased"}
     assert all(f.level == "info" for f in out)
     assert {f.title for f in out if f.code == "line-missing"} == {"release 1.0.0: line-missing"}
+    assert all(f.key.startswith("release-") for f in out)
 
 
 def test_release_missing_column():
@@ -155,3 +156,16 @@ def test_emit_once_keeps_prefixes(tmp_path):
     marker.write_text(json.dumps({"noticed": ["alpha/T-1/backport-missing:abc", "alpha/T-2/kind-unknown"]}))
     checks.emit_once(tmp_path, {}, NOW, keep_prefixes=("alpha/T-1/backport-missing:",))
     assert json.loads(marker.read_text())["noticed"] == ["alpha/T-1/backport-missing:abc"]
+
+
+def test_release_keys_do_not_collide_with_ticket_keys(tmp_path):
+    tf = checks.ticket_findings(table(T(nr="x y", state="open")), rel(V), NOW, 24)
+    rf = checks.release_findings(rel(Version("a b", "release/x", "live")))
+    assert "row1/state-unknown" in [f.key for f in tf]
+    assert "release-row1/state-unknown" in [f.key for f in rf]
+    assert {f.title for f in tf + rf if f.code == "state-unknown"} == {
+        "ticket row1: state-unknown", "release row1: state-unknown"}
+    checks.emit_once(tmp_path, {"alpha": tf + rf}, NOW)
+    titles = [e["title"] for e in events.read(tmp_path, "alpha")[0]]
+    assert titles.count("ticket row1: state-unknown") == 1
+    assert titles.count("release row1: state-unknown") == 1

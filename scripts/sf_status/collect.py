@@ -52,19 +52,8 @@ class State:
     local: list[dict] = field(default_factory=list)  # open local step requests, oldest first
 
 
-def _load_json(path: Path) -> dict:
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {}
-    return data if isinstance(data, dict) else {}
-
-
-def _save_json(path: Path, data: dict) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(".tmp")
-    tmp.write_text(json.dumps(data, sort_keys=True), encoding="utf-8")
-    os.replace(tmp, path)
+_load_json = events.load_json
+_save_json = events.save_json
 
 
 def _iso(ts: float) -> str:

@@ -3,8 +3,6 @@
 Findings carry fixed words, ticket numbers and versions only, never free text from the tables
 (summary, source, notes). `emit_once` writes one notice per project, ticket and finding code.
 """
-import json
-import os
 import re
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
@@ -60,7 +58,9 @@ def _finding(kind: str, ident: str, code: str, source: str) -> Finding:
     text = TEXTS.get(code)
     if text is None:  # column-missing-<name>
         text = "required column is missing"
-    return Finding(f"{ident}/{code}", code, "warning" if code in WARNING_CODES else "info",
+    # release keys get a prefix so they never meet a ticket key (both have state-unknown, row<n>)
+    key_id = "release-" + ident if kind == "release" and ident != "releases-file" else ident
+    return Finding(f"{key_id}/{code}", code, "warning" if code in WARNING_CODES else "info",
                    f"{kind} {ident}: {code}", f"{kind} {ident}: {text}. See {source}.")
 
 
@@ -139,7 +139,7 @@ def _safe(value: str, fallback: str) -> str:
 
 
 def release_findings(releases: Releases) -> list[Finding]:
-    """Findings of RELEASES.md; keys are "<version>/<code>"."""
+    """Findings of RELEASES.md; keys are "release-<version>/<code>"."""
     src = "planning/RELEASES.md"
     out = [_finding("release", "releases-file", f"column-missing-{c}", src) for c in releases.missing]
     has = lambda c: c not in releases.missing  # noqa: E731
@@ -169,11 +169,7 @@ def release_findings(releases: Releases) -> list[Finding]:
 
 
 def _load(path: Path) -> set[str]:
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return set()
-    noticed = data.get("noticed") if isinstance(data, dict) else None
+    noticed = events.load_json(path).get("noticed")
     return {x for x in noticed if isinstance(x, str)} if isinstance(noticed, list) else set()
 
 
@@ -193,7 +189,4 @@ def emit_once(state_dir: Path, per_project: dict[str, list[Finding]], when: date
                                            "title": f.title, "text": f.text}, when)
     kept = set(current) | {k for k in noticed if keep_prefixes and k.startswith(keep_prefixes)}
     if kept != noticed:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = path.with_suffix(".tmp")
-        tmp.write_text(json.dumps({"noticed": sorted(kept)}, sort_keys=True), encoding="utf-8")
-        os.replace(tmp, path)
+        events.save_json(path, {"noticed": sorted(kept)})

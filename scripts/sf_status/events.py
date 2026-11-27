@@ -158,6 +158,23 @@ def save_marker(state_dir: Path, reader: str, offsets: dict[str, int]) -> None:
     os.replace(tmp, target)
 
 
+def load_json(path: Path) -> dict:
+    """A JSON object from `path`; {} if missing, unreadable or not an object."""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def save_json(path: Path, data: dict) -> None:
+    """Atomic write (temp file, then replace); creates the folder."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(data, sort_keys=True), encoding="utf-8")
+    os.replace(tmp, path)
+
+
 def open_questions(events: list[dict]) -> dict[str, dict]:
     """Questions without an answer, by question id."""
     asked: dict[str, dict] = {}
