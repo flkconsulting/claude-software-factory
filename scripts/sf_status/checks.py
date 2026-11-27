@@ -186,7 +186,7 @@ def backport_findings(project: Project, releases: Releases) -> tuple[list[Findin
     out: list[Finding] = []
     keep: list[str] = []
     if "versions.version" in releases.missing:
-        return out, ()
+        return out, (f"{project.name}/backport-",)
     for v in releases.versions:
         if v.state not in ("testing", "accepted"):
             continue

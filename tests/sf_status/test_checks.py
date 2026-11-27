@@ -220,3 +220,21 @@ def test_backport_unreachable_returns_keep_prefix(cherry, tmp_path):
     cherry.answer["value"] = None
     found, keep = checks.backport_findings(_proj(tmp_path), rel(Version("2.0.0", "release/2.0", "accepted")))
     assert found == [] and keep == ("alpha/backport-2.0.0/",)
+
+
+def test_empty_nr_is_invalid_and_critical_unplanned():
+    f = run(T(nr="", kind="bug", rank="critical", since="2026-11-01"))
+    assert {"number-invalid", "critical-unplanned"} <= set(codes(f))
+    assert {x.key for x in f} >= {"row1/number-invalid"}
+
+
+def test_empty_version_and_delivery_ids_use_fallback():
+    r = rel(Version("", "release/1.0", "bogus"), deliveries=[Delivery("customer A", "", "", "", "")])
+    keys = [f.key for f in checks.release_findings(r)]
+    assert "release-row1/state-unknown" in keys
+    assert any(k.startswith("release-delivery1/") for k in keys)
+
+
+def test_backport_missing_version_column_keeps_prefix(cherry, tmp_path):
+    found, keep = checks.backport_findings(_proj(tmp_path), rel(missing=["versions.version"]))
+    assert found == [] and keep == ("alpha/backport-",)

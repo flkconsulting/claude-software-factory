@@ -2,8 +2,6 @@
 
 Events are written before the markers that remember them. Strands are never restarted.
 """
-import json
-import os
 from collections.abc import Container
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -333,7 +331,9 @@ def collect(cfg: ServerConfig, projects: list[Project], now: float,
         found[p.name] = (
             (checks.ticket_findings(tickets, releases, when, cfg.ticket_critical_hours) if tickets is not None else [])
             + (checks.release_findings(releases) if releases is not None else []))
-        if releases is not None:
+        if releases is None:
+            keep.append(f"{p.name}/backport-")
+        else:
             backports, unreachable = checks.backport_findings(p, releases)
             found[p.name] += backports
             keep.extend(unreachable)

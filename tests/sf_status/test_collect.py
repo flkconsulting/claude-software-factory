@@ -493,6 +493,20 @@ def test_backport_notice_once_per_commit(cfg, state, projects, fake, monkeypatch
     assert len(_backport_notices(state)) == 2
 
 
+def test_backport_keys_survive_releases_file_gone_for_one_run(cfg, state, projects, fake, monkeypatch):
+    _releases_file(projects)
+    monkeypatch.setattr(effects, "git_cherry", lambda *a: ["a" * 40])
+    collect.collect(cfg, projects, NOW)
+    assert len(_backport_notices(state)) == 1
+    from pathlib import Path
+    path = Path(projects[0].folder) / "planning" / "RELEASES.md"
+    path.rename(path.with_name("RELEASES.md.off"))
+    collect.collect(cfg, projects, NOW + 60)
+    path.with_name("RELEASES.md.off").rename(path)
+    collect.collect(cfg, projects, NOW + 120)
+    assert len(_backport_notices(state)) == 1
+
+
 def test_backport_without_releases_file_no_git_call(cfg, state, projects, fake, monkeypatch):
     calls = []
     monkeypatch.setattr(effects, "git_cherry", lambda *a: calls.append(a) or [])

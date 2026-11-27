@@ -330,7 +330,8 @@ def attention(state: State) -> dict:
                     for _, v in sorted(state.strands.items()) if v.state in ATTENTION_STATES],
     }
     critical = [{"project": o.get("project"), "nr": b.get("nr")}
-                for o in _dicts(state.tickets) for b in _dicts(o.get("bugs")) if b.get("rank") == "critical"]
+                for o in _dicts(state.tickets) for b in _dicts(o.get("bugs"))
+                if str(b.get("rank", "")).lower() == "critical" and re.fullmatch(r"T-\d+", str(b.get("nr", "")))]
     if critical:
         out["tickets"] = critical
     return out

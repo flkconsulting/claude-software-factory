@@ -138,3 +138,21 @@ def test_overview_invalid_numbers_sort_last_in_file_order():
                          "| T-x | 2026-01-01 | bug | normal | S | new | | | c |\n")
     o = overview("p", parse_tickets(text), None)
     assert [b["nr"] for b in o["bugs"]] == ["T-9", "X-1", "T-x"]
+
+
+def test_parse_tickets_keeps_row_with_empty_nr():
+    t = parse_tickets(HEAD + SEP + "|  | 2026-01-01 | bug | critical | S | new | | a | x |\n"
+                      "|  |  |  |  |  |  |  |  |  |\n")
+    assert len(t.rows) == 1 and t.rows[0].nr == "" and t.rows[0].kind == "bug"
+
+
+def test_parse_releases_keeps_rows_with_empty_key_and_subheadings():
+    text = ("## Versions\n\n| version | line | state |\n| --- | --- | --- |\n"
+            "|  | release/1.0 | planned |\n"
+            "### Older\n"
+            "| 1.0.0 | release/1.0 | released |\n\n"
+            "## Deliveries\n\n| customer | version | planned |\n| --- | --- | --- |\n"
+            "|  | 1.0.0 | 2026-01-01 |\n")
+    r = parse_releases(text)
+    assert [v.version for v in r.versions] == ["", "1.0.0"]
+    assert [d.customer for d in r.deliveries] == [""]

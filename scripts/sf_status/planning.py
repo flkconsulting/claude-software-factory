@@ -14,6 +14,7 @@ from .projects import Project
 
 _SEPARATOR = re.compile(r"^:?-{1,}:?$")
 _COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
+_HEADING = re.compile(r"^\s*#{1,2}(?!#)\s*(.*)$")
 
 TICKET_REQUIRED = ("nr", "since", "kind", "rank", "state", "version")
 VERSION_REQUIRED = ("version", "line", "state")
@@ -83,8 +84,7 @@ def _table(lines: list[str], key: str = "nr") -> tuple[list[str] | None, list[li
             if cells[0].lower() == key:
                 header = [c.lower() for c in cells]
             continue
-        if cells[0]:
-            rows.append(cells)
+        rows.append(cells)
     return header, rows
 
 
@@ -115,8 +115,9 @@ def parse_releases(text: str) -> Releases:
     sections: dict[str, list[str]] = {"versions": [], "deliveries": []}
     current = None
     for line in _lines(text):
-        if line.lstrip().startswith("#"):
-            current = line.lstrip().lstrip("#").strip().lower()
+        m = _HEADING.match(line)
+        if m:  # only level 1 and 2 headings switch sections; deeper ones belong to the section
+            current = m.group(1).strip().lower()
             continue
         if current in sections:
             sections[current].append(line)

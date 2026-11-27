@@ -328,3 +328,10 @@ def test_attention_tickets_key_only_when_critical():
         {"nr": "T-2", "rank": "high", "state": "new", "version": "", "summary": "x"}])]))
     got = render.attention(make_state(tickets=[_overview()]))
     assert got["tickets"] == [{"project": "alpha", "nr": "T-3"}]
+
+
+def test_attention_tickets_drops_free_text_numbers_and_ignores_rank_case():
+    bug = lambda nr, rank: {"nr": nr, "rank": rank, "state": "new", "version": "", "summary": "x"}  # noqa: E731
+    got = render.attention(make_state(tickets=[_overview(bugs=[
+        bug("T-5", "Critical"), bug("free text", "critical"), bug("", "critical")])]))
+    assert got["tickets"] == [{"project": "alpha", "nr": "T-5"}]
