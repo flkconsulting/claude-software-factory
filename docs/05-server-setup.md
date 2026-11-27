@@ -330,6 +330,33 @@ sf-status backport --project <name> --version <version>
 
 `sf-status tickets` prints one JSON line per ticket (the project and all ticket columns); `--train` keeps only tickets whose version carries that train date in `RELEASES.md`. It exits 0 also when there are no files, 1 for an unknown project and 2 for a bad date. `sf-status backport` prints one JSON line per missing commit (`version`, `line`, `commit`) and exits 1 when something is missing, 0 when nothing is, and 2 when the project or the version is unknown or not checkable (one line `sf-status: ...` on stderr). A release step can use it as a precondition.
 
+## Release train
+
+A project can run a weekly release train (variant B only, default off). Once a week the supervisor asks which version goes onto the test environment; after the answer a strand builds it. The train needs `--supervisor yes`.
+
+| Setting | Values | Default |
+| --- | --- | --- |
+| `train` (`on` or `off`) | `--train on` or `--train off` | off |
+| `train_day` | `mon` to `sun` (`--train-day`) | `tue` |
+| `train_time` | `HH:MM` (`--train-time`) | `18:00` |
+| `train_tz` | a time zone name (`--train-tz`) | `Europe/Berlin` |
+| `train_skip` | comma separated dates `YYYY-MM-DD` (`--train-skip`; `""` clears) | none |
+
+Set them with `sf-status project add ...` or later with `sf-status project set --project <name> --train on --train-day tue --train-time 18:00 --train-tz Europe/Berlin --train-skip 2026-12-29`. `sf-status project list` shows `train=<day> <time> <tz>` only when the train is on. Daylight saving time is handled: 18:00 stays 18:00 local time.
+
+### Flow
+
+1. At the cut-off (day and time in the zone) `sf-status run` raises the trigger `train:<date>`. A cut-off is caught up for 24 hours; of several missed dates only the latest counts. A date in `train_skip` gives the info `Train <date> skipped`, a missed one the warning `Train <date> missed`. The first sighting after switching the train on records a missed date silently. The marker is `markers/train.json`.
+2. The supervisor prepares the train list (`sf-status tickets --train <date>`, `git log` of each line) and asks one question with `sf-status train question --project <name> --date <date> --background ... --recommendation ... "<text>"`. The text names every candidate version, one per line (first `planned` version of each line in `RELEASES.md`). Ids: `train-<date>`, then `train-<date>-2`, ...
+3. The answer is evaluated without a model. Exactly one candidate version as a word, no question mark, no `|`, no negation or waiting word: approved. "Train suspended" without a candidate: suspended. Anything else is unclear and wakes the supervisor (`answer:train-...`) to ask back.
+4. On approval `sf-status` writes the wave plan row `zug-<version with dashes>` (approval `yes - "<words>"`, branch `release/<version>`, base = the line) and commits only that file locally. It never pushes.
+5. The supervisor starts the strand through the normal start path, with the start file from `<state-dir>/supervisor/train-start.md`. `sf-status launch` refuses a second `zug-` strand: one train strand per project.
+6. `sf-status run` waits with the notice `Train <date> waits: <reason>` while a train strand is open, the wave plan has local changes or the commit fails (the row is unstaged, the file restored, retry in the next run).
+7. The strand cuts `release/<version>`, builds, runs the trial run, backs up and rolls out to the test environment (only if `AGENTS.md` names a command), and asks for the acceptance. Findings become tickets; fixes go only on `release/<version>` as `-test.N` builds and are brought back to the line as a step of their own.
+8. The release comes only after an acceptance without findings and an empty `sf-status backport` (`git cherry`, see "Backport check"). Tag and push are commands for the human.
+
+The board shows `Next train: <date> - <in> in / <working> in progress / <waiting> waiting for you` and `On the test environment: ...`. A critical bug (`safety` trigger) in a candidate version leads to a question "critical bug T-<n>". Setup: `/setup-workflow` step 10 (a); the push permission for `release/*` is a decision of the human, never force-push, never `main`.
+
 ## Switching off
 
 You can stop the server layer at any time; variant A and the hooks keep working.

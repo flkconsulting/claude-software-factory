@@ -174,3 +174,14 @@ def test_planning_readme_lists_tickets():
     text = (TEMPLATES / "planning" / "README.md").read_text(encoding="utf-8")
     for needle in ("TICKETS.md", "RELEASES.md", "T-", "agents never write `assessed`"):
         assert needle in text
+
+
+def test_setup_offers_train_option():
+    text = SETUP.read_text(encoding="utf-8")
+    step10 = text.split("10. **", 1)[1].split("11. **Wave plan", 1)[0]
+    for needle in ("(a) **Release train", "variant B only", "default off",
+                   "sf-status project set --project", "--train on", "release/*",
+                   "decision proposal", "never force-push", "supervisor-train.md", "train-start.md"):
+        assert needle in step10, needle
+    step13 = text.split("13. **", 1)[1]
+    assert "train" in step13

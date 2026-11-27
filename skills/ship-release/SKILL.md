@@ -35,3 +35,10 @@ Releasing and deploying need the user's explicit approval (quote it in the start
 - Update the release status line in the project plan, commit and push only the release branch.
 - Report with first line `RELEASE <version> DONE`, `RELEASE <version> BLOCKED` or `RELEASE <version> IN PROGRESS` (while the release runs or the acceptance waits for the user): times in UTC, backup location, state before/after, checks with numbers, comparison of findings, way back, commits.
 - Section "Acceptance for the user": numbered list, each item with the click path or command, what is new, and how to recognise it.
+
+## 4. Release train (only when the project runs one)
+
+- Entries in `planning/RELEASES.md` and `planning/TICKETS.md` are written in the main checkout (the project folder), not in the copy in the worktree, and never only on `release/`: what exists only there is lost when the line moves on. The same holds for a version log the project keeps in its code; bringing it back to the line belongs to the return of the fixes.
+- Before the release run `sf-status backport --project <name> --version <version>`. Release only if it prints nothing. If it prints commits, hand the human the missing commits instead of the tag and push commands, and set the report to `IN PROGRESS`.
+- A release train strand creates no tag and no push to `main`; it writes the commands as text for the human.
+- Fix rounds after the acceptance are builds `<version>-test.N` on `release/<version>`; a fix round is not a new train.

@@ -71,3 +71,13 @@ def test_delegate_work_local_steps():
                    "--state failed - <<'EOF'", "sf-status deliver --project <project> --strand <short> -", "Never put the text in double quotes",
                    "information only", "full path", "Keep the text short"):
         assert needle in text, needle
+
+
+def test_ship_release_train_section():
+    text = (ROOT / "skills" / "ship-release" / "SKILL.md").read_text(encoding="utf-8")
+    assert "Release train" in text
+    section = text.split("Release train", 1)[1]
+    for needle in ("planning/RELEASES.md", "main checkout", "never only on `release/`",
+                   "sf-status backport --project", "only if it prints nothing",
+                   "the missing commits instead of the tag and push commands", "no tag", "-test.N"):
+        assert needle in section, needle

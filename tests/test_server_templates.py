@@ -206,3 +206,30 @@ def test_supervisor_task_local_trigger():
     assert "local_result" in text and "request_id" in text
     assert "word for word" in text and "sf-status deliver" in text
     assert len(text.encode("utf-8")) <= 6144
+
+
+def test_train_start_template():
+    text = read("train-start.md")
+    assert "**Model:** sonnet" in text
+    for needle in ("<version>", "<date>", "<line>", "<train-list>", "planning/RELEASES.md",
+                   "sf-status backport", "git cherry", "never only on `release/`",
+                   "a fix round is not a new train", "no tag", "no push to `main`"):
+        assert needle in text, needle
+    assert "{{" not in text
+    assert not any(c in text for c in UMLAUTS)
+    assert len(text.encode("utf-8")) <= 4096
+
+
+def test_supervisor_train_template():
+    text = read("supervisor-train.md")
+    for needle in ("train:<date>", "answer:train-", "sf-status train question", "one question",
+                   "one candidate per line", "on the test environment", "ask back",
+                   "sf-status tickets", "safety", "train-start.md", "never write the wave plan"):
+        assert needle in text, needle
+    assert "{{" not in text
+    assert not any(c in text for c in UMLAUTS)
+    assert len(text.encode("utf-8")) <= 3072
+    task = read("supervisor-task.md")
+    assert "train:<date>" in task
+    assert "<state-dir>/supervisor/train.md" in task
+    assert len(task.encode("utf-8")) <= 6144

@@ -94,3 +94,15 @@ def test_doc_tickets_section():
         assert needle in section, needle
     table = text.split("## Server settings", 1)[1].split("\n## ", 1)[0]
     assert "`ticket_critical_hours`" in table
+
+
+def test_doc_release_train_section():
+    text = _doc()
+    assert "\n## Release train" in text
+    section = text.split("\n## Release train", 1)[1].split("\n## ", 1)[0]
+    for needle in ("train_day", "train_time", "train_tz", "train_skip", "sf-status project set",
+                   "train-<date>", "zug-", "cut-off", "24 hours", "one train strand",
+                   "markers/train.json", "Next train", "git cherry", "| Setting |"):
+        assert needle in section, needle
+    method = (ROOT / "docs" / "03-working-method.md").read_text(encoding="utf-8")
+    assert "release train" in method

@@ -27,7 +27,7 @@
 6. **Strands.** Each strand writes its own plan and implements it with helper agents. Heavy runs (full test run, end-to-end, build) at most two at a time.
 7. **Screenshot acceptance.** Strands with a user interface present their pictures; the human says "fine" or writes on the picture.
 8. **Merge.** One wave is merged together, followed by a full test run.
-9. **Release.** Build, trial run, backup, roll-out with an acceptance list, only with the human's approval (`skills/ship-release/`).
+9. **Release.** Build, trial run, backup, roll-out with an acceptance list, only with the human's approval (`skills/ship-release/`). Projects on the server can run a weekly release train: the supervisor asks once a week which version goes onto the test environment (`docs/05-server-setup.md`, section "Release train").
 
 ## Rules that always apply
 
@@ -53,7 +53,7 @@ One page for everything the human has to know or do: a morning report, screensho
 | Building block | Corresponds to | Difference |
 | --- | --- | --- |
 | Strands in parallel with a cap on strands and on heavy runs | Kanban with a WIP limit | No board by hand; the steering session pulls itself |
-| Wave plan with an approval flag, merge per wave | Release-train planning | Waves last hours to days, not weeks |
+| Wave plan with an approval flag, merge per wave | Release-train planning | Waves last hours to days, not weeks; the optional weekly release train asks for one approval per week |
 | Urgent defect past everything else | Kanban expedite lane | - |
 | BLOCKED, stall reports, status board | Lean: stop on defects, signal board | The signal is automatic |
 | Regular retrospective | Retrospective, kaizen | Frequent, with cost figures; "no change" is explicitly allowed |
