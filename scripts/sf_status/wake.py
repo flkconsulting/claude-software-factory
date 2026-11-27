@@ -10,7 +10,7 @@ import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from . import events
+from . import events, train
 from .config import ServerConfig
 from .projects import Project
 from .supervisor import triggers_lock
@@ -28,6 +28,8 @@ class Triggers(list):
 
     pending: dict
     notices: list  # (project, sanitized short cell) of approved rows that cannot become a trigger
+    train_marks: dict  # new markers/train.json content
+    train_notices: list  # (project, level, title, text) for skipped / missed train dates
 
 
 def _stamp(when: datetime) -> str:
@@ -74,6 +76,8 @@ def collect_triggers(cfg: ServerConfig, projects: list[Project], state_dir: Path
             if isinstance(stored.get("seen"), dict) and (t := _parse(v)) and now - t < DEBOUNCE}
     found = Triggers()
     found.notices = []
+    found.train_notices = []
+    train_marks = train.load_marker(state_dir)
     new_offsets = dict(offsets)
 
     def add(trigger: str, debounce: bool) -> None:
@@ -99,6 +103,17 @@ def collect_triggers(cfg: ServerConfig, projects: list[Project], state_dir: Path
                 add(f"local:{e['request_id']}", False)
             elif kind == "stall" and events.valid_id(strand):
                 add(f"stall:{strand}", True)
+        due = train.check(project, train_marks, now)
+        if due is not None:
+            entry = train_marks.setdefault(project.name, {})
+            entry.setdefault("dates", {})[due.date] = due.kind
+            entry.setdefault("questions", {})
+            if due.kind == "due":
+                add(f"train:{due.date}", False)
+            else:
+                level = "info" if due.kind == "skipped" else "warning"
+                found.train_notices.append((project.name, level, f"Train {due.date} {due.kind}",
+                                            f"The train cut-off of {due.date} was {due.kind}; no train question was asked."))
         approved = _approved_rows(project)
         if approved is None:
             continue
@@ -119,6 +134,7 @@ def collect_triggers(cfg: ServerConfig, projects: list[Project], state_dir: Path
         add("safety", False)
         last_safety = _stamp(now)
 
+    found.train_marks = train_marks
     found.pending = {**new_offsets, "rows": rows, "seen": seen}
     if last_safety:
         found.pending["last_safety"] = last_safety
@@ -147,6 +163,11 @@ def commit_triggers(state_dir: Path, triggers: Triggers, now: datetime | None = 
         events.append(state_dir, project, {
             "kind": "notice", "strand": "server", "level": "warning", "title": "wave plan row skipped",
             "text": f"Approved row with short {short!r} has no valid id (a-z, 0-9, hyphens) and starts nothing."}, when)
+    for project, level, title, text in triggers.train_notices:
+        events.append(state_dir, project, {"kind": "notice", "strand": "server", "level": level,
+                                           "title": title, "text": text}, when)
+    if triggers.train_marks:
+        train.save_marker(state_dir, triggers.train_marks)
     _atomic(state_dir / "markers" / f"{READER}.json", triggers.pending)
 
 
@@ -155,4 +176,6 @@ def fast_forward(cfg: ServerConfig, projects: list[Project], state_dir: Path, no
     triggers = collect_triggers(cfg, projects, state_dir, now)
     pending = dict(triggers.pending)
     pending["last_safety"] = _stamp(now)
+    if triggers.train_marks:
+        train.save_marker(state_dir, triggers.train_marks)
     _atomic(Path(state_dir) / "markers" / f"{READER}.json", pending)

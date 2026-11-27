@@ -187,3 +187,59 @@ def test_local_result_trigger(cfg, state, proj):
     events.append(state, "beta", {"kind": "local_result", "strand": "a", "request_id": "a-l1",
                                   "state": "ok", "text": "built"}, T0)
     assert [t for t in run(cfg, [off], state, T0) if t.startswith("local:")] == []
+
+
+TRAIN_DUE = datetime(2026, 12, 1, 17, 30, tzinfo=timezone.utc)
+
+
+def train_proj(proj, **kw):
+    return Project(name="alpha", title="Alpha", folder=proj.folder, supervisor=True, train=True, **kw)
+
+
+def train_marker(state):
+    return json.loads((state / "markers" / "train.json").read_text())
+
+
+def test_train_trigger_raised_and_adopted_once(cfg, state, proj):
+    p = train_proj(proj)
+    assert "train:2026-12-01" in run(cfg, [p], state, TRAIN_DUE, commit=False)
+    assert not (state / "markers" / "train.json").exists()  # dry run writes nothing
+    assert "train:2026-12-01" in run(cfg, [p], state, TRAIN_DUE)
+    assert train_marker(state)["alpha"]["dates"] == {"2026-12-01": "due"}
+    data = json.loads((state / "supervisor" / "triggers.json").read_text())
+    assert "train:2026-12-01" in [i["id"] for i in data["open"]]
+    assert "train:2026-12-01" not in run(cfg, [p], state, TRAIN_DUE + timedelta(minutes=5))
+
+
+def test_train_missed_and_skipped_notices_once(cfg, state, proj):
+    p = train_proj(proj)
+    late = TRAIN_DUE + timedelta(days=1, hours=5)
+    assert not [t for t in run(cfg, [p], state, late) if t.startswith("train:")]
+    run(cfg, [p], state, late + timedelta(minutes=5))
+    notes = [e for e in events.read(state, "alpha")[0] if e["kind"] == "notice"]
+    assert [(e["level"], e["title"]) for e in notes] == [("warning", "Train 2026-12-01 missed")]
+    s = train_proj(proj, train_skip=["2026-12-08"])
+    at = datetime(2026, 12, 8, 18, tzinfo=timezone.utc)
+    run(cfg, [s], state, at)
+    run(cfg, [s], state, at + timedelta(minutes=5))
+    notes = [e for e in events.read(state, "alpha")[0] if e["kind"] == "notice"]
+    assert [(e["level"], e["title"]) for e in notes][1:] == [("info", "Train 2026-12-08 skipped")]
+
+
+def test_fast_forward_marks_train_date_without_trigger(cfg, state, proj):
+    p = train_proj(proj)
+    wake.fast_forward(cfg, [p], state, TRAIN_DUE)
+    assert train_marker(state)["alpha"]["dates"] == {"2026-12-01": "due"}
+    assert not [t for t in run(cfg, [p], state, TRAIN_DUE + timedelta(minutes=1)) if t.startswith("train:")]
+    assert not [e for e in events.read(state, "alpha")[0] if e["kind"] == "notice"]
+
+
+def test_project_without_supervisor_ignored_by_wake(cfg, state, proj):
+    p = Project(name="alpha", title="Alpha", folder=proj.folder, supervisor=False, train=True)
+    assert run(cfg, [p], state, TRAIN_DUE) == []
+    assert not (state / "markers" / "train.json").exists()
+
+
+def test_bad_train_settings_do_not_crash_wake(cfg, state, proj):
+    p = train_proj(proj, train_day="xyz", train_tz="Nowhere/Land")
+    assert not [t for t in run(cfg, [p], state, TRAIN_DUE) if t.startswith("train:")]

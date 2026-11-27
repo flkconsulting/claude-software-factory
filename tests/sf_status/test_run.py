@@ -129,3 +129,10 @@ def test_wake_fast_forward_command(env):
     assert cli.main(["wake", "fast-forward"]) == 0
     assert cli.main(["run"]) == 0
     assert env.spawned == []
+
+
+def test_project_without_train_no_marker(env):
+    env.configure()
+    env.register()
+    assert cli.main(["run"]) == 0
+    assert not (env.state / "markers" / "train.json").exists()
