@@ -13,7 +13,7 @@ Two variants: **A** runs everything on one machine, with subagents and git workt
 
 Restart Claude Code (or start a new session) so the hooks take effect.
 
-The hooks are active in every project as soon as the plugin is enabled, with `mode: block` by default. Agent calls without `model` - also from other plugins - are rejected. To only get hints, create `~/.claude/software-factory.json` with `{"mode": "warn"}`; to stop them, disable the plugin.
+The hooks are active in every project as soon as the plugin is enabled, with `mode: block` by default. Agent calls without `model` - also from other plugins - are rejected, and so are Bash wait loops with `pgrep -f` or `ps … | grep`. To only get hints, create `~/.claude/software-factory.json` with `{"mode": "warn"}`; to stop them, disable the plugin.
 
 ## Companion plugins and tools
 
@@ -55,6 +55,7 @@ Variant B (Stage 2) runs longer work on a dedicated server: strands in tmux, a c
 | Building block | What it does | Where |
 | --- | --- | --- |
 | Model-choice hook | Rejects (block) or warns about helper-agent dispatches that do not name a model | `hooks/model_choice.py` |
+| Wait-loop hook | Rejects (block) or warns about Bash wait loops (`until`/`while`) with `pgrep -f` or `ps … \| grep`, which find their own shell and never end | `hooks/wait_loop.py` |
 | Context-load hook | Reports once per threshold when a session history gets large and asks for a handover | `hooks/context_load.py` |
 | Reminders hook | Tells the session about due reminders of its project, once a day; optional daily macOS notification | `hooks/reminders.py` |
 | Mod `kontextlast` (separate plugin) | Shows the context load and the distance to the next threshold in the status line | `plugins/kontextlast/` |

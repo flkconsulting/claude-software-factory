@@ -25,11 +25,13 @@ def test_hooks_registered():
     hooks = config["hooks"]
 
     pre = hooks["PreToolUse"]
-    assert len(pre) == 1
-    assert pre[0]["matcher"] == "Agent|Task"
-    pre_cmds = [h for h in pre[0]["hooks"] if h["type"] == "command"]
-    assert len(pre_cmds) == 1
-    assert pre_cmds[0]["command"] == 'python3 "${CLAUDE_PLUGIN_ROOT}/hooks/model_choice.py"'
+    assert [e["matcher"] for e in pre] == ["Agent|Task", "Bash"]
+    pre_cmds = []
+    for entry, name in zip(pre, ("model_choice.py", "wait_loop.py")):
+        cmds = [h for h in entry["hooks"] if h["type"] == "command"]
+        assert len(cmds) == 1
+        assert cmds[0]["command"] == f'python3 "${{CLAUDE_PLUGIN_ROOT}}/hooks/{name}"'
+        pre_cmds += cmds
 
     ups = hooks["UserPromptSubmit"]
     assert len(ups) == 1
@@ -40,6 +42,6 @@ def test_hooks_registered():
         'python3 "${CLAUDE_PLUGIN_ROOT}/hooks/reminders.py"',
     ]
 
-    for command in [pre_cmds[0]["command"]] + [h["command"] for h in ups_cmds]:
+    for command in [h["command"] for h in pre_cmds + ups_cmds]:
         script = _resolve(_command_script(command))
         assert script.is_file(), script
