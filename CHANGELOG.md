@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented in this file.
 
-## [Unreleased]
+## [0.7.0]
 
 ### Added
 - Wait-loop hook `hooks/wait_loop.py` (PreToolUse, matcher `Bash`): rejects a command that combines an `until`/`while` loop with `pgrep -f` (also `--full`, combined flags such as `-af`) or `ps … | grep`, because such a loop finds its own shell and never ends; the message points to the project's wait helper (e.g. `scripts/warte-auf.sh`) or `run_in_background`. Follows `mode` (block/warn) like the model-choice hook. A mere mention inside a quoted string (e.g. a commit message) also counts.
